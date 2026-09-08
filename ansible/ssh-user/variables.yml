@@ -1,21 +1,22 @@
 # Targeted for execution with Ansible 2.9.27.
 ---
-- name: Fetch instance metadata attributes
-  include_tasks: ansible/fetch-gcp-instance-attribute.yml
-  loop:
-    - ssh_username
-    - git_repository
-    - git_email
-    - git_name
-  vars:
-    gcp_metadata_attribute: "{{ item }}"
-    gcp_metadata_fact: "{{ item }}"
-
-- name: Set derived facts
-  set_fact:
-    documents_dir: "/home/{{ ssh_username }}/Documents"
-
-- name: Set derived facts
-  set_fact:
-    git_repository_dir: "{{ documents_dir }}/cmpe-283-virtual-technologies"
-    remote_development_dir: "{{ documents_dir }}/remote-cmpe-283-virtual-technologies"
+# @TODO
+#- name: Fetch instance metadata attributes
+#  include_tasks: ansible/fetch-gcp-instance-attribute.yml
+#  loop:
+#    - ssh_username
+#    - git_repository
+#    - git_email
+#    - git_name
+#  vars:
+#    gcp_metadata_attribute: "{{ item }}"
+#    gcp_metadata_fact: "{{ item }}"
+#
+#- name: Set derived facts
+#  set_fact:
+#    documents_dir: "/home/{{ ssh_username }}/Documents"
+#
+#- name: Set derived facts
+#  set_fact:
+#    git_repository_dir: "{{ documents_dir }}/cmpe-283-virtual-technologies"
+#    remote_development_dir: "{{ documents_dir }}/remote-cmpe-283-virtual-technologies"
