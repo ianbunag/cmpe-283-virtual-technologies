@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Refer to README.md for how to work with this codebase (starting services, builds, tests, etc.) and any extra agent instructions.
+Refer to README.md for how to work with this codebase (starting services, builds, tests, etc.) and any extra agent instructions. Refer to CUSTOM_AGENTS.md for repository-specific agent instructions, if it exists.
 
 ## Role & mindset
 
