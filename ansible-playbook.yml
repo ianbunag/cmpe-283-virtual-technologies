@@ -1,0 +1,12 @@
+# Targeted for execution with Ansible 2.9.27.
+---
+- hosts: localhost
+  tasks:
+    - name: Load instance metadata variables
+      include_tasks: ansible/playbook/variables.yml
+
+    - name: Environment bootstrap
+      include_tasks: ansible/playbook/bootstrap.yml
+
+    - name: Update Cloudflare DNS A record
+      include_tasks: ansible/playbook/update-cloudflare-dns-a-record.yml

@@ -1,0 +1,16 @@
+# Targeted for execution with Ansible 2.9.27.
+---
+- hosts: localhost
+  tasks:
+    - name: Load instance metadata variables
+      include_tasks: ansible/ssh-user/variables.yml
+
+    - name: Execute user-scoped setup tasks
+      block:
+        - name: Environment bootstrap
+          include_tasks: ansible/ssh-user/bootstrap.yml
+
+        - name: Sync git repository
+          include_tasks: ansible/ssh-user/sync-git-repository.yml
+      become: true
+      become_user: "{{ ssh_username }}"

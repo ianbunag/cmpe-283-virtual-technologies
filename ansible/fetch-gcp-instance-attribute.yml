@@ -1,0 +1,15 @@
+# Targeted for execution with Ansible 2.9.27.
+---
+- name: "Retrieve custom GCP instance attribute: {{ gcp_metadata_attribute }}"
+  uri:
+    url: "http://metadata.google.internal/computeMetadata/v1/instance/attributes/{{ gcp_metadata_attribute }}"
+    method: GET
+    headers:
+      Metadata-Flavor: "Google"
+    return_content: yes
+    status_code: 200
+  register: gcp_instance_attribute_response
+
+- name: "Set runtime fact for GCP instance attribute: {{ gcp_metadata_attribute }}"
+  set_fact:
+    "{{ gcp_metadata_fact | default(gcp_metadata_attribute) }}": "{{ gcp_instance_attribute_response.content | trim }}"
