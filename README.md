@@ -42,7 +42,7 @@ You can configure CLion for remote development via SFTP file synchronization usi
 | Setting | Value |
 | :--- | :--- |
 | **Type** | `SFTP` |
-| **Root path** | *Autodetect* |
+| **Root path** | `/home/<username>/Documents/remote-cmpe-283-virtual-technologies` |
 | **Use rsync for download/upload/sync** | Enabled |
 
 #### Mappings
@@ -51,5 +51,5 @@ Switch to the **Mappings** tab:
 
 | Setting | Value |
 | :--- | :--- |
-| **Local path** | `<Project Root>` |
-| **Deployment path** | `Documents/remote-cmpe-283-virtual-technologies` |
+| **Local path** | `<project-root>` |
+| **Deployment path** | `/` |
