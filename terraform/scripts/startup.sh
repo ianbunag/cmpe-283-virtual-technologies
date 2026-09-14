@@ -2,9 +2,10 @@
 set -euo pipefail
 
 if ! command -v ansible >/dev/null 2>&1; then
-    apt-add-repository -y ppa:ansible/ansible-2.9
     apt-get update
-    apt-get install -y ansible
+    apt-get install -y pipx
+    pipx ensurepath
+    pipx install --include-deps ansible
 fi
 
 SSH_USER_HOME=$(eval echo "~${SSH_USERNAME}")

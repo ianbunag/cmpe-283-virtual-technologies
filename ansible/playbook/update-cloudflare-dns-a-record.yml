@@ -1,55 +1,54 @@
 # Targeted for execution with Ansible 2.9.27.
 ---
-# @TODO
-#- name: Fetch Cloudflare API token from GCP Secret Manager
-#  command: "gcloud secrets versions access latest --secret={{ cloudflare_update_dns_token_secret_name }}"
-#  register: cloudflare_update_dns_token_result
-#  changed_when: false
-#  no_log: true
-#
-#- name: Set runtime API token fact
-#  set_fact:
-#    cloudflare_update_dns_token: "{{ cloudflare_update_dns_token_result.stdout | trim }}"
-#  no_log: true
-#
-#- name: Retrieve current GCP VM external IP address
-#  uri:
-#    url: "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip"
-#    method: GET
-#    headers:
-#      Metadata-Flavor: "Google"
-#    return_content: yes
-#    status_code: 200
-#  register: external_ip_response
-#
-#- name: Set runtime external IP fact
-#  set_fact:
-#    external_ip: "{{ external_ip_response.content | trim }}"
-#
-#- name: Update Cloudflare DNS A record
-#  uri:
-#    url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflare_zone_id }}/dns_records/{{ cloudflare_record_id }}"
-#    method: PATCH
-#    headers:
-#      Authorization: "Bearer {{ cloudflare_update_dns_token }}"
-#      Content-Type: "application/json"
-#    body_format: json
-#    body:
-#      type: "A"
-#      name: "{{ domain }}"
-#      content: "{{ external_ip }}"
-#      ttl: 1 # Automatic TTL.
-#      proxied: false
-#    status_code: 200
-#  register: update_cloudflare_dns_a_record_response
-#  failed_when: not update_cloudflare_dns_a_record_response.json.success
-#  no_log: true
-#
-#- name: Confirm DNS update status
-#  debug:
-#    msg: >-
-#      {{
-#        'Updated ' + domain + ' A record to ' + external_ip + '.'
-#        if (update_cloudflare_dns_a_record_response is changed or (update_cloudflare_dns_a_record_response is defined and not update_cloudflare_dns_a_record_response.skipped | default(false)))
-#        else domain + ' A record is already up to date (' + external_ip + ').'
-#      }}
+- name: Fetch Cloudflare API token from GCP Secret Manager
+  command: "gcloud secrets versions access latest --secret={{ cloudflare_update_dns_token_secret_name }}"
+  register: cloudflare_update_dns_token_result
+  changed_when: false
+  no_log: true
+
+- name: Set runtime API token fact
+  set_fact:
+    cloudflare_update_dns_token: "{{ cloudflare_update_dns_token_result.stdout | trim }}"
+  no_log: true
+
+- name: Retrieve current GCP VM external IP address
+  uri:
+    url: "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip"
+    method: GET
+    headers:
+      Metadata-Flavor: "Google"
+    return_content: yes
+    status_code: 200
+  register: external_ip_response
+
+- name: Set runtime external IP fact
+  set_fact:
+    external_ip: "{{ external_ip_response.content | trim }}"
+
+- name: Update Cloudflare DNS A record
+  uri:
+    url: "https://api.cloudflare.com/client/v4/zones/{{ cloudflare_zone_id }}/dns_records/{{ cloudflare_record_id }}"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ cloudflare_update_dns_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      type: "A"
+      name: "{{ domain }}"
+      content: "{{ external_ip }}"
+      ttl: 1 # Automatic TTL.
+      proxied: false
+    status_code: 200
+  register: update_cloudflare_dns_a_record_response
+  failed_when: not update_cloudflare_dns_a_record_response.json.success
+  no_log: true
+
+- name: Confirm DNS update status
+  debug:
+    msg: >-
+      {{
+        'Updated ' + domain + ' A record to ' + external_ip + '.'
+        if (update_cloudflare_dns_a_record_response is changed or (update_cloudflare_dns_a_record_response is defined and not update_cloudflare_dns_a_record_response.skipped | default(false)))
+        else domain + ' A record is already up to date (' + external_ip + ').'
+      }}
