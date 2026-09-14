@@ -1,4 +1,4 @@
-# Targeted for execution with Ansible 2.9.27.
+# Targeted for execution with Ansible 2.21.4.
 ---
 - hosts: localhost
   tasks:

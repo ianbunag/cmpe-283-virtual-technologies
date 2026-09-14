@@ -1,5 +1,4 @@
-# @TODO ansible version across all files
-# Targeted for execution with Ansible 2.9.27.
+# Targeted for execution with Ansible 2.21.4.
 ---
 - name: Fetch instance metadata attributes
   include_tasks: ansible/fetch-gcp-instance-attribute.yml

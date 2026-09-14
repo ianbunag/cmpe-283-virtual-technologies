@@ -1,4 +1,4 @@
-# Targeted for execution with Ansible 2.9.27.
+# Targeted for execution with Ansible 2.21.4.
 ---
 - name: Fetch Cloudflare API token from GCP Secret Manager
   command: "gcloud secrets versions access latest --secret={{ cloudflare_update_dns_token_secret_name }}"

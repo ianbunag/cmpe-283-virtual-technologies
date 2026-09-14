@@ -2,4 +2,4 @@
 
 ## Code style
 
-- Ansible playbooks and task files are targeted for execution with Ansible 2.9.27.
+- Ansible playbooks and task files are targeted for execution with Ansible 2.21.4.
