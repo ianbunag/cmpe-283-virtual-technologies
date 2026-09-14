@@ -1,18 +1,14 @@
 # Targeted for execution with Ansible 2.21.4.
 ---
-# @TODO
-#- name: Install packages
-#  apt:
-#    name:
-#      - build-essential
-#      - gcc-multilib
-#      - gdb
-#      - tar
-#      - flawfinder
-#      - valgrind
-#      - git
-#    state: present
-#    update_cache: yes
-#    cache_valid_time: 86400
-#    install_recommends: no
-#  become: true
+- name: Install packages
+  apt:
+    name:
+      - build-essential
+      - gcc-multilib
+      - gdb
+      - git
+    state: present
+    update_cache: yes
+    cache_valid_time: 86400
+    install_recommends: no
+  become: true
