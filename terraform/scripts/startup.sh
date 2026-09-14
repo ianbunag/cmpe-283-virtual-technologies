@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# pipx installs binaries into ~/.local/bin, which is omitted from the GCP startup runner's default PATH.
+# pipx ensurepath only modifies dotfiles for future login shells, so the current process must set it directly.
 export HOME="$${HOME:-/root}"
 export PATH="$HOME/.local/bin:$PATH"
 
