@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+export HOME="$${HOME:-/root}"
+export PATH="$HOME/.local/bin:$PATH"
+
 if ! command -v ansible >/dev/null 2>&1; then
     apt-get update
     apt-get install -y pipx
