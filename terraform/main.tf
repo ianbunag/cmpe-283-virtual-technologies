@@ -15,6 +15,19 @@ resource "google_service_account" "vm" {
   display_name = "${upper(local.slug)} VM"
 }
 
+resource "google_compute_firewall" "vm_ssh" {
+  name    = "${local.slug}-allow-ssh"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges           = ["0.0.0.0/0"]
+  target_service_accounts = [google_service_account.vm.email]
+}
+
 resource "google_secret_manager_secret_iam_member" "vm_secrets" {
   for_each = toset([
     var.cloudflare_update_dns_token_secret_name,
