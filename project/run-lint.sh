@@ -1,4 +1,4 @@
-gcc ./myvmm.c -o myvmm
+./build.sh
 
 echo "----- Performing SAST with flawfinder -----"
 flawfinder myvmm.c

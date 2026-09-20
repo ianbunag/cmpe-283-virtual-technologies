@@ -96,7 +96,7 @@ static void teardownState(Hypervisor* hypervisor)
 
         if (current_node->config.vm_binary != NULL)
         {
-            memset(current_node->config.vm_binary, 0, strnlen(current_node->config.vm_binary));
+            memset(current_node->config.vm_binary, 0, strnlen(current_node->config.vm_binary, 4096));
             free(current_node->config.vm_binary);
             current_node->config.vm_binary = NULL;
         }
