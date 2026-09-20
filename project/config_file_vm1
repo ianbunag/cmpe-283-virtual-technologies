@@ -1,3 +1,0 @@
-mult $v0 $zero $zero
-addi $v0 $zero 1
-mult $v0 $zero $zero
