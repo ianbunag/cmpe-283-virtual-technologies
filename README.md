@@ -53,3 +53,12 @@ Switch to the **Mappings** tab:
 | :--- | :--- |
 | **Local path** | `<project-root>` |
 | **Deployment path** | `/` |
+
+### Enabling IntelliSense
+
+To activate code completion and IntelliSense in CLion:
+
+1. Open the source file containing the `main` function.
+2. Click the green **Run** (play) button in the editor gutter beside `main`.
+
+This allows CLion to resolve the execution context and index project symbols, enabling full code navigation, diagnostics, and auto-completion.

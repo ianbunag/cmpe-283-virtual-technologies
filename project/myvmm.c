@@ -20,7 +20,6 @@ typedef struct Node
 {
     NodeConfig config;
     struct Node* next;
-    // VMInstructions vm_instructions;
 } Node;
 
 typedef struct Hypervisor
@@ -32,6 +31,12 @@ typedef struct Hypervisor
 
 static int validateArgs(int argc, char* argv[])
 {
+    if (argc == 1)
+    {
+        fprintf(stdout, "No argument provided, exiting.\n");
+        return 1;
+    }
+
     for (int i = 1; i < argc; i++)
     {
         if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
@@ -42,6 +47,11 @@ static int validateArgs(int argc, char* argv[])
     }
 
     return 1;
+}
+
+static Node* setupNode()
+{
+    Node* node = malloc(sizeof(Node));
 }
 
 static Hypervisor* setupState(int argc, char* argv[])
