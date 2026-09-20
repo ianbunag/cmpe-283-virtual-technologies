@@ -50,15 +50,22 @@ set -e
 if [[ ! -f "$SNAPSHOT_FILE" || "$UPDATE_SNAPSHOTS" -eq 1 ]]; then
     cp "$TEMP_OUTPUT" "$SNAPSHOT_FILE"
     echo "⚠️ Snapshot saved for ${TEST_NAME}: ${SNAPSHOT_FILE}"
+
+    echo "--- Snapshot start ---"
+    cat $SNAPSHOT_FILE
+    echo "---- Snapshot end ----"
+    echo ""
     exit 0
 fi
 
 # Compare run output against saved snapshot
 if cmp -s "$TEMP_OUTPUT" "$SNAPSHOT_FILE"; then
     echo "✅ Test for ${TEST_NAME} passed"
+    exit 0
 else
     echo "❌ Test for ${TEST_NAME} failed"
     echo "--- Side-by-side Diff (Left: Snapshot | Right: Current Run) ---"
     diff -y "$SNAPSHOT_FILE" "$TEMP_OUTPUT" || true
     echo ""
+    exit 0
 fi
