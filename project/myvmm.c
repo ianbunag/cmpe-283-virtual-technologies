@@ -6,8 +6,8 @@
 // @TODO integration test
 typedef struct NodeConfig
 {
-    char* instructions_file;
-    char* snapshot_file;
+    char* vm_binary;
+    int vm_exec_slice_in_instructions;
 } NodeConfig;
 
 // @TODO socket/buffer DS
@@ -29,20 +29,36 @@ typedef struct Hypervisor
     Node* head_node;
 } Hypervisor;
 
+#define MAX_ARG_LEN 4096
+
+static int validateArgs(int argc, char* argv[])
+{
+    for (int i = 1; i < argc; i++)
+    {
+        if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
+        {
+            fprintf(stderr, "Error: argument exceeds maximum allowed length of %d.\n", MAX_ARG_LEN);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static Hypervisor* setupState(int argc, char* argv[])
 {
     int opt;
     static Hypervisor hypervisor = {};
     Node* current_node = NULL;
 
+    /* Flawfinder: ignore - args are validated */
     while ((opt = getopt(argc, argv, "v:s:")) != -1)
     {
         switch (opt)
         {
         case 'v': {
             Node* node = malloc(sizeof(Node));
-            node->config.instructions_file = strdup(optarg);
-            node->config.snapshot_file = NULL;
+            node->config.vm_binary = strdup(optarg);
             node->next = NULL;
 
             if (hypervisor.head_node == NULL)
@@ -57,12 +73,6 @@ static Hypervisor* setupState(int argc, char* argv[])
             }
             break;
         }
-        case 's':
-            if (current_node != NULL)
-            {
-                current_node->config.snapshot_file = strdup(optarg);
-            }
-            break;
         default:
             break;
         }
@@ -84,18 +94,11 @@ static void teardownState(Hypervisor* hypervisor)
     {
         Node* next = current_node->next;
 
-        if (current_node->config.instructions_file != NULL)
+        if (current_node->config.vm_binary != NULL)
         {
-            memset(current_node->config.instructions_file, 0, strlen(current_node->config.instructions_file));
-            free(current_node->config.instructions_file);
-            current_node->config.instructions_file = NULL;
-        }
-
-        if (current_node->config.snapshot_file != NULL)
-        {
-            memset(current_node->config.snapshot_file, 0, strlen(current_node->config.snapshot_file));
-            free(current_node->config.snapshot_file);
-            current_node->config.snapshot_file = NULL;
+            memset(current_node->config.vm_binary, 0, strnlen(current_node->config.vm_binary));
+            free(current_node->config.vm_binary);
+            current_node->config.vm_binary = NULL;
         }
 
         memset(current_node, 0, sizeof(Node));
@@ -108,8 +111,12 @@ static void teardownState(Hypervisor* hypervisor)
 
 int main(const int argc, char* argv[])
 {
-    Hypervisor* hypervisor = setupState(argc, argv);
+    if (validateArgs(argc, argv))
+    {
+        return 1;
+    }
 
+    Hypervisor* hypervisor = setupState(argc, argv);
     teardownState(hypervisor);
 
     return 0;
