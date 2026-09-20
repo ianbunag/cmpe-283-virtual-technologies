@@ -6,6 +6,8 @@
       - build-essential
       - gcc-multilib
       - gdb
+      - flawfinder
+      - valgrind
     state: present
     update_cache: yes
     cache_valid_time: 86400
