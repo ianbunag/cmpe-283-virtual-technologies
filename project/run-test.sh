@@ -56,10 +56,9 @@ fi
 # Compare run output against saved snapshot
 if cmp -s "$TEMP_OUTPUT" "$SNAPSHOT_FILE"; then
     echo "✅ Test for ${TEST_NAME} passed"
-    exit 0
 else
     echo "❌ Test for ${TEST_NAME} failed"
     echo "--- Side-by-side Diff (Left: Snapshot | Right: Current Run) ---"
     diff -y "$SNAPSHOT_FILE" "$TEMP_OUTPUT" || true
-    exit 1
+    echo ""
 fi

@@ -3,19 +3,18 @@
 #include <string.h>
 #include <unistd.h>
 
-// @TODO integration test
 typedef struct NodeConfig
 {
     char* vm_binary;
     int vm_exec_slice_in_instructions;
 } NodeConfig;
 
-// @TODO socket/buffer DS
-// typedef struct
-// {
-//     FILE *socket;
-//     char buffer[256];
-// } VMInstructions;
+typedef struct
+{
+    FILE *file;
+    char buffer[64];
+    char has_pending_instructions;
+} Socket;
 
 typedef struct Node
 {
