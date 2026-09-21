@@ -13,23 +13,11 @@ typedef struct NodeConfig
     char* vm_binary;
 } NodeConfig;
 
-typedef struct NodeConfigContainer
-{
-    bool has_error;
-    NodeConfig config;
-} NodeConfigContainer;
-
 typedef struct NodeSocket
 {
     FILE *file;
     bool has_pending_instructions;
 } NodeSocket;
-
-typedef struct NodeSocketContainer
-{
-    bool has_error;
-    NodeSocket socket;
-} NodeSocketContainer;
 
 typedef struct Node
 {
@@ -38,26 +26,13 @@ typedef struct Node
     struct Node* next;
 } Node;
 
-typedef struct NodeContainer
-{
-    bool has_error;
-    Node* node;
-} NodeContainer;
-
 typedef struct Hypervisor
 {
     Node* head_node;
 } Hypervisor;
 
-typedef struct HypervisorContainer
-{
-    bool has_error;
-    Hypervisor* hypervisor;
-} HypervisorContainer;
-
 typedef struct SplitStringContainer
 {
-    bool has_error;
     char* original;
     size_t original_length;
     size_t capacity;
@@ -85,80 +60,114 @@ static bool validateArgs(int argc, char* argv[])
     return true;
 }
 
-static SplitStringContainer split_string(char* input, const char* delimiter)
+static void teardown_split_string_container(SplitStringContainer* container)
 {
-    SplitStringContainer container = {0};
-    container.original = strndup(input, MAX_LINE_LEN);
-    container.original_length = strnlen(input, MAX_LINE_LEN);
-    container.capacity = 1;
-    container.count = 0;
-    container.strings = calloc(container.capacity, sizeof(char *));
+    if (container == NULL)
+        return;
 
-    if (container.original == NULL)
+    if (container->original != NULL)
     {
-        fprintf(stderr, "Error: SplitStringContainer.original string duplication failed.\n");
-        container.has_error = true;
-        return container;
+        memset(container->original, 0, container->original_length);
+        free(container->original);
+        container->original = NULL;
     }
 
-    if (container.strings == NULL)
+    if (container->strings != NULL)
+    {
+        // Strings are automatically zeroed out when container->original was cleaned up.
+        free(container->strings);
+        container->strings = NULL;
+    }
+
+    memset(container, 0, sizeof(SplitStringContainer));
+    free(container);
+}
+
+static SplitStringContainer* split_string(char* input, const char* delimiter)
+{
+    SplitStringContainer* container = calloc(1, sizeof(SplitStringContainer));
+
+    if (container == NULL)
+    {
+        fprintf(stderr, "Error: SplitStringContainer memory allocation failed.\n");
+        return NULL;
+    }
+
+    container->original = strndup(input, MAX_LINE_LEN);
+    container->original_length = strnlen(input, MAX_LINE_LEN);
+    container->capacity = 1;
+    container->count = 0;
+    container->strings = calloc(container->capacity, sizeof(char *));
+
+    if (container->original == NULL)
+    {
+        fprintf(stderr, "Error: SplitStringContainer.original string duplication failed.\n");
+        teardown_split_string_container(container);
+        return NULL;
+    }
+
+    if (container->strings == NULL)
     {
         fprintf(stderr, "Error: SplitStringContainer.strings memory allocation failed.\n");
-        container.has_error = true;
-        return container;
+        teardown_split_string_container(container);
+        return NULL;
     }
 
     char *saveptr = NULL;
-    char *string = strtok_r(container.original, delimiter, &saveptr);
+    char *string = strtok_r(container->original, delimiter, &saveptr);
 
     while (string != NULL) {
-        if (container.count >= container.capacity) {
-            container.capacity *= 2;
-            char **reallocated_strings = realloc(container.strings, container.capacity * sizeof(char *));
+        if (container->count >= container->capacity) {
+            container->capacity *= 2;
+            char **reallocated_strings = realloc(container->strings, container->capacity * sizeof(char *));
 
             if (reallocated_strings == NULL) {
                 fprintf(stderr, "Error: SplitStringContainer.strings memory reallocation failed.\n");
-                container.has_error = true;
-                return container;
+                teardown_split_string_container(container);
+                return NULL;
             }
 
-            container.strings = reallocated_strings;
+            container->strings = reallocated_strings;
         }
 
-        container.strings[container.count++] = string;
+        container->strings[container->count++] = string;
         string = strtok_r(NULL, delimiter, &saveptr);
     }
 
     return container;
 }
 
-static void teardown_split_string_container(SplitStringContainer container)
+static void teardownNodeConfig(NodeConfig* config)
 {
-    if (container.original != NULL)
+    if (config == NULL)
+        return;
+
+    if (config->assembly_file_name != NULL)
     {
-        memset(container.original, 0, container.original_length);
-        free(container.original);
-        container.original = NULL;
+        memset(config->assembly_file_name, 0, strnlen(config->assembly_file_name, MAX_ARG_LEN));
+        free(config->assembly_file_name);
+        config->assembly_file_name = NULL;
     }
 
-
-    if (container.strings != NULL)
+    if (config->vm_binary != NULL)
     {
-        free(container.strings);
-        container.strings = NULL;
+        memset(config->vm_binary, 0, strnlen(config->vm_binary, MAX_LINE_LEN));
+        free(config->vm_binary);
+        config->vm_binary = NULL;
     }
+
+    memset(config, 0, sizeof(NodeConfig));
 }
 
-static NodeConfigContainer setupNodeConfig(char* assembly_file_name)
+static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
 {
-    NodeConfigContainer container = {0};
-    container.config.assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
+    memset(config, 0, sizeof(NodeConfig));
+    config->assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
 
-    if (container.config.assembly_file_name == NULL)
+    if (config->assembly_file_name == NULL)
     {
         fprintf(stderr, "Error: NodeConfig.assembly_file_name memory allocation failed.\n");
-        container.has_error = true;
-        return container;
+        return false;
     }
 
     /* Flawfinder: ignore - file name supplied by user. */
@@ -167,8 +176,8 @@ static NodeConfigContainer setupNodeConfig(char* assembly_file_name)
     if (assembly_file == NULL)
     {
         fprintf(stderr, "Error: configuration \"%s\" cannot be opened.\n", assembly_file_name);
-        container.has_error = true;
-        return container;
+        teardownNodeConfig(config);
+        return false;
     }
 
     char *line = NULL;
@@ -176,19 +185,24 @@ static NodeConfigContainer setupNodeConfig(char* assembly_file_name)
     bool has_error = false;
 
     while (getline(&line, &len, assembly_file) != -1) {
-        SplitStringContainer strings = split_string(line, "=\r\n");
+        SplitStringContainer* strings = split_string(line, "=\r\n");
 
-        if (strings.has_error)
-            has_error = true;
-        else if (strings.count == 2)
+        if (strings == NULL)
         {
-            if (strcmp(strings.strings[0], "vm_binary") == 0)
-            {
-                if (container.config.vm_binary != NULL)
-                    free(container.config.vm_binary);
-                container.config.vm_binary = strndup(strings.strings[1], MAX_LINE_LEN);
+            has_error = true;
+            break;
+        }
 
-                if (container.config.vm_binary == NULL)
+        if (strings->count == 2)
+        {
+            if (strcmp(strings->strings[0], "vm_binary") == 0)
+            {
+                if (config->vm_binary != NULL)
+                    free(config->vm_binary);
+
+                config->vm_binary = strndup(strings->strings[1], MAX_LINE_LEN);
+
+                if (config->vm_binary == NULL)
                 {
                     fprintf(stderr, "Error: NodeConfig.vm_binary memory allocation failed.\n");
                     has_error = true;
@@ -204,83 +218,54 @@ static NodeConfigContainer setupNodeConfig(char* assembly_file_name)
         }
     }
 
-    container.has_error = has_error;
     fclose(assembly_file);
     free(line);
 
-    return container;
-}
-
-static void teardownNodeConfig(NodeConfig config)
-{
-    if (config.assembly_file_name != NULL)
+    if (has_error)
     {
-        memset(config.assembly_file_name, 0, strnlen(config.assembly_file_name, MAX_ARG_LEN));
-        free(config.assembly_file_name);
-        config.assembly_file_name = NULL;
+        teardownNodeConfig(config);
+        return false;
     }
 
-    if (config.vm_binary != NULL)
-    {
-        memset(config.vm_binary, 0, strnlen(config.vm_binary, MAX_LINE_LEN));
-        free(config.vm_binary);
-        config.vm_binary = NULL;
-    }
+    return true;
 }
 
-static NodeSocketContainer setupNodeSocket(char* vm_binary)
+static void teardownNodeSocket(NodeSocket* socket)
 {
-    NodeSocketContainer container = {0};
+    if (socket == NULL)
+        return;
+
+    if (socket->file != NULL)
+    {
+        fclose(socket->file);
+        socket->file = NULL;
+    }
+
+    socket->has_pending_instructions = false;
+}
+
+static bool setupNodeSocket(char* vm_binary, NodeSocket* socket)
+{
+    memset(socket, 0, sizeof(NodeSocket));
+
+    if (vm_binary == NULL)
+    {
+        fprintf(stderr, "Error: vm_binary was not configured.\n");
+        return false;
+    }
+
     /* Flawfinder: ignore - file name supplied by user. */
-    container.socket.file = fopen(vm_binary, "r");
+    socket->file = fopen(vm_binary, "r");
 
-    if (container.socket.file == NULL)
+    if (socket->file == NULL)
     {
         fprintf(stderr, "Error: vm_binary \"%s\" cannot be opened.\n", vm_binary);
-        container.has_error = true;
-        return container;
+        return false;
     }
 
-    return container;
-}
+    socket->has_pending_instructions = true;
 
-static void teardownNodeSocket(NodeSocket socket)
-{
-    if (socket.file != NULL)
-        fclose(socket.file);
-}
-
-static NodeContainer setupNode(char* assembly_file_name)
-{
-    NodeContainer container = {0};
-    container.node = calloc(1, sizeof(Node));
-
-    if (container.node == NULL)
-    {
-        fprintf(stderr, "Error: NodeContainer.node memory allocation failed.\n");
-        container.has_error = true;
-        return container;
-    }
-
-    NodeConfigContainer configContainer = setupNodeConfig(assembly_file_name);
-    container.node->config = configContainer.config;
-
-    if (configContainer.has_error)
-    {
-        container.has_error = true;
-        return container;
-    }
-
-    NodeSocketContainer socketContainer = setupNodeSocket(container.node->config.vm_binary);
-    container.node->socket = socketContainer.socket;
-
-    if (socketContainer.has_error)
-    {
-        container.has_error = true;
-        return container;
-    }
-
-    return container;
+    return true;
 }
 
 static void teardownNode(Node* node)
@@ -288,65 +273,43 @@ static void teardownNode(Node* node)
     if (node == NULL)
         return;
 
-    teardownNodeConfig(node->config);
-    teardownNodeSocket(node->socket);
+    teardownNodeConfig(&node->config);
+    teardownNodeSocket(&node->socket);
 
     memset(node, 0, sizeof(Node));
     free(node);
 }
 
-static HypervisorContainer setupHypervisor(int argc, char* argv[])
+static Node* setupNode(char* assembly_file_name)
 {
-    HypervisorContainer container = {0};
-    container.hypervisor = calloc(1, sizeof(Hypervisor));
-    int opt;
+    Node* node = calloc(1, sizeof(Node));
 
-    if (container.hypervisor == NULL)
+    if (node == NULL)
     {
-        fprintf(stderr, "Error: HypervisorContainer.hypervisor memory allocation failed.\n");
-        container.has_error = true;
-        return container;
+        fprintf(stderr, "Error: Node memory allocation failed.\n");
+        return NULL;
     }
 
-    Node* current_node = NULL;
-
-    /* Flawfinder: ignore - args are validated */
-    while ((opt = getopt(argc, argv, "v:s:")) != -1)
+    if (!setupNodeConfig(assembly_file_name, &node->config))
     {
-        switch (opt)
-        {
-        case 'v': {
-            NodeContainer nodeContainer = setupNode(optarg);
-
-            if (container.hypervisor->head_node == NULL)
-            {
-                container.hypervisor->head_node = nodeContainer.node;
-                current_node = nodeContainer.node;
-            }
-            else
-            {
-                current_node->next = nodeContainer.node;
-                current_node = nodeContainer.node;
-            }
-
-            // Allow node to be torn down with the hypervisor.
-            if (nodeContainer.has_error)
-            {
-                container.has_error = true;
-                return container;
-            }
-            break;
-        }
-        default:
-            break;
-        }
+        teardownNode(node);
+        return NULL;
     }
 
-    return container;
+    if (!setupNodeSocket(node->config.vm_binary, &node->socket))
+    {
+        teardownNode(node);
+        return NULL;
+    }
+
+    return node;
 }
 
 static void teardownHypervisor(Hypervisor* hypervisor)
 {
+    if (hypervisor == NULL)
+        return;
+
     Node* current_node = hypervisor->head_node;
     hypervisor->head_node = NULL;
 
@@ -361,19 +324,59 @@ static void teardownHypervisor(Hypervisor* hypervisor)
     free(hypervisor);
 }
 
+static Hypervisor* setupHypervisor(int argc, char* argv[])
+{
+    Hypervisor* hypervisor = calloc(1, sizeof(Hypervisor));
+    if (hypervisor == NULL)
+    {
+        fprintf(stderr, "Error: Hypervisor memory allocation failed.\n");
+        return NULL;
+    }
+
+    Node* current_node = NULL;
+    int opt;
+
+    /* Flawfinder: ignore - args are validated */
+    while ((opt = getopt(argc, argv, "v:s:")) != -1)
+    {
+        switch (opt)
+        {
+        case 'v': {
+            Node* node = setupNode(optarg);
+
+            if (node == NULL)
+            {
+                teardownHypervisor(hypervisor);
+                return NULL;
+            }
+
+            if (hypervisor->head_node == NULL)
+                hypervisor->head_node = node;
+            else
+                current_node->next = node;
+
+            current_node = node;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    return hypervisor;
+}
+
 int main(const int argc, char* argv[])
 {
     if (!validateArgs(argc, argv))
         return 1;
 
-    HypervisorContainer container = setupHypervisor(argc, argv);
+    Hypervisor* hypervisor = setupHypervisor(argc, argv);
 
-    if (container.has_error)
-    {
-        teardownHypervisor(container.hypervisor);
+    if (hypervisor == NULL)
         return 1;
-    }
 
-    teardownHypervisor(container.hypervisor);
+    teardownHypervisor(hypervisor);
+
     return 0;
 }
