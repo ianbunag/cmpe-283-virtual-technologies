@@ -1,1 +1,1 @@
-Error: configuration "non_existent_assembly_file_vm" not found.
+Error: configuration "tests/non_existent_assembly_file_vm" cannot be opened.
