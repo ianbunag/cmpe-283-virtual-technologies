@@ -1,2 +1,2 @@
 ./build.sh
-./myvmm -v noop_assembly_file
+./myvmm -v noop_assembly_file -v noop_assembly_file
