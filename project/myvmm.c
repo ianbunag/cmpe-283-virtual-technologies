@@ -3,9 +3,30 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
+#define COLOR_YELLOW "\033[0;33m"
+#define COLOR_RESET "\033[0m"
+
+static bool debug_enabled = false;
+
+/* Flawfinder: ignore - gcc format attribute */
+__attribute__((unused, format(printf, 1, 2)))
+static void debug(const char* format, ...)
+{
+    if (!debug_enabled)
+        return;
+
+    va_list args;
+    va_start(args, format);
+    fprintf(stderr, "%sDebug: ", COLOR_YELLOW);
+    /* Flawfinder: ignore - format string supplied internally */
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "%s", COLOR_RESET);
+    va_end(args);
+}
 
 typedef struct NodeConfig
 {
@@ -163,6 +184,7 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
 {
     memset(config, 0, sizeof(NodeConfig));
     config->assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
+    debug("NodeConfig->assembly_file_name = \"%s\"\n", config->assembly_file_name);
 
     if (config->assembly_file_name == NULL)
     {
@@ -201,6 +223,7 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
                     free(config->vm_binary);
 
                 config->vm_binary = strndup(strings->strings[1], MAX_LINE_LEN);
+                debug("NodeConfig->vm_binary = \"%s\"\n", config->vm_binary);
 
                 if (config->vm_binary == NULL)
                 {
@@ -337,11 +360,16 @@ static Hypervisor* setupHypervisor(int argc, char* argv[])
     int opt;
 
     /* Flawfinder: ignore - args are validated */
-    while ((opt = getopt(argc, argv, "v:s:")) != -1)
+    while ((opt = getopt(argc, argv, "v:d")) != -1)
     {
         switch (opt)
         {
+        case 'd':
+            debug_enabled = true;
+            debug("Debug enabled.\n");
+            break;
         case 'v': {
+            debug("Node = \"%s\"\n", optarg);
             Node* node = setupNode(optarg);
 
             if (node == NULL)

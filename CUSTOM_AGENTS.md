@@ -3,3 +3,8 @@
 ## Code style
 
 - Ansible playbooks and task files are targeted for execution with Ansible 2.21.4.
+
+## Workflow
+
+- Never run any of the C executables or command bash files.
+
