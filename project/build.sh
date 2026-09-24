@@ -1,1 +1,1 @@
-gcc ./myvmm.c -o myvmm
+gcc -g ./myvmm.c -o myvmm

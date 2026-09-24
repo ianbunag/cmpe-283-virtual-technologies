@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
@@ -28,38 +29,20 @@ static void debug(const char* format, ...)
     va_end(args);
 }
 
-typedef struct NodeConfig
+// https://stackoverflow.com/a/1726321
+static void remove_spaces(char* s)
 {
-    char* assembly_file_name;
-    char* vm_binary;
-} NodeConfig;
+    char* d = s;
 
-typedef struct NodeSocket
-{
-    FILE* file;
-    bool has_pending_instructions;
-} NodeSocket;
-
-typedef struct NodeProcessor
-{
-    int32_t registers[32];
-    int32_t program_counter;
-} NodeProcessor;
-
-typedef struct Node
-{
-    NodeConfig config;
-    NodeSocket socket;
-    NodeProcessor processor;
-    struct Node* next;
-} Node;
-
-typedef struct Hypervisor
-{
-    Node* head_node;
-    Node* current_node;
-    unsigned int active_nodes;
-} Hypervisor;
+    do
+    {
+        while (isspace((unsigned char)*d))
+        {
+            ++d;
+        }
+    }
+    while (*s++ = *d++);
+}
 
 typedef struct SplitStringContainer
 {
@@ -69,26 +52,6 @@ typedef struct SplitStringContainer
     size_t count;
     char** strings;
 } SplitStringContainer;
-
-static bool validate_args(int argc, char* argv[])
-{
-    if (argc == 1)
-    {
-        fprintf(stdout, "No argument provided, exiting.\n");
-        return false;
-    }
-
-    for (int i = 1; i < argc; i++)
-    {
-        if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
-        {
-            fprintf(stderr, "Error: argument exceeds maximum allowed length of %d.\n", MAX_ARG_LEN);
-            return false;
-        }
-    }
-
-    return true;
-}
 
 static void teardown_split_string_container(SplitStringContainer* container)
 {
@@ -170,6 +133,59 @@ static SplitStringContainer* split_string(char* input, const char* delimiter)
     return container;
 }
 
+typedef struct NodeConfig
+{
+    char* assembly_file_name;
+    char* vm_binary;
+} NodeConfig;
+
+typedef struct NodeSocket
+{
+    FILE* file;
+    bool has_pending_instructions;
+} NodeSocket;
+
+typedef struct NodeProcessor
+{
+    int32_t registers[32];
+    int32_t program_counter;
+} NodeProcessor;
+
+typedef struct Node
+{
+    NodeConfig config;
+    NodeSocket socket;
+    NodeProcessor processor;
+    struct Node* next;
+} Node;
+
+typedef struct Hypervisor
+{
+    Node* head_node;
+    Node* current_node;
+    unsigned int active_nodes;
+} Hypervisor;
+
+static bool validate_args(int argc, char* argv[])
+{
+    if (argc == 1)
+    {
+        fprintf(stdout, "No argument provided, exiting.\n");
+        return false;
+    }
+
+    for (int i = 1; i < argc; i++)
+    {
+        if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
+        {
+            fprintf(stderr, "Error: argument exceeds maximum allowed length of %d.\n", MAX_ARG_LEN);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static void teardown_node_config(NodeConfig* config)
 {
     if (config == NULL)
@@ -220,22 +236,23 @@ static bool setup_node_config(char* assembly_file_name, NodeConfig* config)
 
     while (getline(&line, &len, assembly_file) != -1)
     {
-        SplitStringContainer* strings = split_string(line, "=\r\n");
+        remove_spaces(line);
+        SplitStringContainer* lines = split_string(line, "=");
 
-        if (strings == NULL)
+        if (lines == NULL)
         {
             has_error = true;
             break;
         }
 
-        if (strings->count == 2)
+        if (lines->count == 2)
         {
-            if (strcmp(strings->strings[0], "vm_binary") == 0)
+            if (strcmp(lines->strings[0], "vm_binary") == 0)
             {
                 if (config->vm_binary != NULL)
                     free(config->vm_binary);
 
-                config->vm_binary = strndup(strings->strings[1], MAX_LINE_LEN);
+                config->vm_binary = strndup(lines->strings[1], MAX_LINE_LEN);
                 debug("NodeConfig->vm_binary = \"%s\"\n", config->vm_binary);
 
                 if (config->vm_binary == NULL)
@@ -246,7 +263,7 @@ static bool setup_node_config(char* assembly_file_name, NodeConfig* config)
             }
         }
 
-        teardown_split_string_container(strings);
+        teardown_split_string_container(lines);
 
         if (has_error)
         {
@@ -255,7 +272,8 @@ static bool setup_node_config(char* assembly_file_name, NodeConfig* config)
     }
 
     fclose(assembly_file);
-    free(line);
+    if (line != NULL)
+        free(line);
 
     if (has_error)
     {
@@ -443,6 +461,80 @@ static void dump_processor_state(Node* node)
     }
 }
 
+
+// @TODO normalize spaces
+static bool get_register_key(const char* raw_key, int8_t* key)
+{
+    int numeric_part;
+
+    if (sscanf(raw_key, "$%d", &numeric_part) != 1 || numeric_part < 0 || numeric_part > 31)
+    {
+        // @TODO test this case
+        fprintf(stderr, "Error: Could not parse register key \"%s\"\n", raw_key);
+
+        return false;
+    }
+
+
+    *key = (int8_t)numeric_part;
+
+    return true;
+}
+
+static void set_register(NodeProcessor* processor, const char* raw_key, const char* raw_value)
+{
+    int8_t key;
+
+    if (!get_register_key(raw_key, &key))
+    {
+        return;
+    }
+
+    int32_t value;
+
+    if (sscanf(raw_value, "%d", &value) != 1)
+    {
+        // @TODO test this case
+        fprintf(stderr, "Error: Could not parse register value \"%s\"\n", raw_value);
+        return;
+    }
+
+    processor->registers[key] = value;
+    debug("NodeProcessor->registers[%d] = %d\n", key, value);
+}
+
+// @TODO check in consumers if value was updated
+static void get_register(const NodeProcessor* processor, const char* raw_key, int32_t* value)
+{
+    int8_t key;
+
+    if (!get_register_key(raw_key, &key))
+    {
+        return;
+    }
+
+    *value = processor->registers[key];
+}
+
+static bool load_immediate(Node* node, char* raw_parameters)
+{
+    SplitStringContainer* parameters = split_string(raw_parameters, ",");
+
+    if (parameters == NULL)
+    {
+        return false;
+    }
+
+    if (parameters->count == 2)
+    {
+        set_register(&node->processor, parameters->strings[0], parameters->strings[1]);
+    }
+
+    teardown_split_string_container(parameters);
+
+    return true;
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -455,25 +547,38 @@ static bool run_node(Hypervisor* hypervisor)
         line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
         debug("Running instruction \"%s\"\n", line);
 
-        SplitStringContainer* strings = split_string(line, " ");
+        SplitStringContainer* instructions = split_string(line, " ");
 
-        if (strings == NULL)
+        if (instructions == NULL)
         {
             has_error = true;
             break;
         }
 
-        if (strings->count == 1 && strcmp(strings->strings[0], "DUMP_PROCESSOR_STATE") == 0)
+        if (instructions->count == 1 && strcmp(instructions->strings[0], "DUMP_PROCESSOR_STATE") == 0)
         {
             dump_processor_state(hypervisor->current_node);
         }
+        else if (instructions->count == 2)
+        {
+            if (strcmp(instructions->strings[0], "li") == 0)
+            {
+                has_error = !load_immediate(hypervisor->current_node, instructions->strings[1]);
+            }
+        }
 
-        teardown_split_string_container(strings);
+        teardown_split_string_container(instructions);
         hypervisor->current_node->processor.program_counter += 1;
+
+        if (has_error)
+            break;
     }
 
     if (chars_read == -1)
         hypervisor->current_node->socket.has_pending_instructions = false;
+
+    if (line != NULL)
+        free(line);
 
     return has_error;
 }

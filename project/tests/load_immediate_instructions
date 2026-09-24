@@ -1,0 +1,3 @@
+li $0,1
+li $31,31
+DUMP_PROCESSOR_STATE
