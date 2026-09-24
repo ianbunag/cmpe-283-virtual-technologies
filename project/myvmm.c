@@ -10,6 +10,8 @@
 #define COLOR_YELLOW "\033[0;33m"
 #define COLOR_RESET "\033[0m"
 
+// @TODO naming convention
+
 static bool debug_enabled = false;
 
 /* Flawfinder: ignore - gcc format attribute */
@@ -36,20 +38,29 @@ typedef struct NodeConfig
 
 typedef struct NodeSocket
 {
-    FILE *file;
+    FILE* file;
     bool has_pending_instructions;
 } NodeSocket;
+
+typedef struct NodeProcessor
+{
+    int32_t registers[32];
+    int32_t program_counter;
+} NodeProcessor;
 
 typedef struct Node
 {
     NodeConfig config;
     NodeSocket socket;
+    NodeProcessor processor;
     struct Node* next;
 } Node;
 
 typedef struct Hypervisor
 {
     Node* head_node;
+    Node* current_node;
+    unsigned int active_nodes;
 } Hypervisor;
 
 typedef struct SplitStringContainer
@@ -118,7 +129,7 @@ static SplitStringContainer* split_string(char* input, const char* delimiter)
     container->original_length = strnlen(input, MAX_LINE_LEN);
     container->capacity = 1;
     container->count = 0;
-    container->strings = calloc(container->capacity, sizeof(char *));
+    container->strings = calloc(container->capacity, sizeof(char*));
 
     if (container->original == NULL)
     {
@@ -134,15 +145,18 @@ static SplitStringContainer* split_string(char* input, const char* delimiter)
         return NULL;
     }
 
-    char *saveptr = NULL;
-    char *string = strtok_r(container->original, delimiter, &saveptr);
+    char* saveptr = NULL;
+    char* string = strtok_r(container->original, delimiter, &saveptr);
 
-    while (string != NULL) {
-        if (container->count >= container->capacity) {
+    while (string != NULL)
+    {
+        if (container->count >= container->capacity)
+        {
             container->capacity *= 2;
-            char **reallocated_strings = realloc(container->strings, container->capacity * sizeof(char *));
+            char** reallocated_strings = realloc(container->strings, container->capacity * sizeof(char*));
 
-            if (reallocated_strings == NULL) {
+            if (reallocated_strings == NULL)
+            {
                 fprintf(stderr, "Error: SplitStringContainer.strings memory reallocation failed.\n");
                 teardown_split_string_container(container);
                 return NULL;
@@ -193,7 +207,7 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
     }
 
     /* Flawfinder: ignore - file name supplied by user. */
-    FILE *assembly_file = fopen(assembly_file_name, "r");
+    FILE* assembly_file = fopen(assembly_file_name, "r");
 
     if (assembly_file == NULL)
     {
@@ -202,11 +216,12 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
         return false;
     }
 
-    char *line = NULL;
+    char* line = NULL;
     size_t len = 0;
     bool has_error = false;
 
-    while (getline(&line, &len, assembly_file) != -1) {
+    while (getline(&line, &len, assembly_file) != -1)
+    {
         SplitStringContainer* strings = split_string(line, "=\r\n");
 
         if (strings == NULL)
@@ -291,6 +306,19 @@ static bool setupNodeSocket(char* vm_binary, NodeSocket* socket)
     return true;
 }
 
+static void resetNodeProcessor(NodeProcessor* processor)
+{
+    if (processor == NULL)
+        return;
+
+    for (int i = 0; i < 32; i++)
+    {
+        processor->registers[i] = 0;
+    }
+
+    processor->program_counter = 0;
+}
+
 static void teardownNode(Node* node)
 {
     if (node == NULL)
@@ -298,6 +326,7 @@ static void teardownNode(Node* node)
 
     teardownNodeConfig(&node->config);
     teardownNodeSocket(&node->socket);
+    resetNodeProcessor(&node->processor);
 
     memset(node, 0, sizeof(Node));
     free(node);
@@ -325,6 +354,8 @@ static Node* setupNode(char* assembly_file_name)
         return NULL;
     }
 
+    resetNodeProcessor(&node->processor);
+
     return node;
 }
 
@@ -335,6 +366,7 @@ static void teardownHypervisor(Hypervisor* hypervisor)
 
     Node* current_node = hypervisor->head_node;
     hypervisor->head_node = NULL;
+    hypervisor->active_nodes = 0;
 
     while (current_node != NULL)
     {
@@ -356,7 +388,7 @@ static Hypervisor* setupHypervisor(int argc, char* argv[])
         return NULL;
     }
 
-    Node* current_node = NULL;
+    hypervisor->current_node = NULL;
     int opt;
 
     /* Flawfinder: ignore - args are validated */
@@ -368,30 +400,108 @@ static Hypervisor* setupHypervisor(int argc, char* argv[])
             debug_enabled = true;
             debug("Debug enabled.\n");
             break;
-        case 'v': {
-            debug("Node = \"%s\"\n", optarg);
-            Node* node = setupNode(optarg);
-
-            if (node == NULL)
+        case 'v':
             {
-                teardownHypervisor(hypervisor);
-                return NULL;
+                debug("Node = \"%s\"\n", optarg);
+                Node* node = setupNode(optarg);
+
+                if (node == NULL)
+                {
+                    teardownHypervisor(hypervisor);
+                    return NULL;
+                }
+
+                if (hypervisor->head_node == NULL)
+                    hypervisor->head_node = node;
+                else
+                    hypervisor->current_node->next = node;
+
+                hypervisor->active_nodes += 1;
+                hypervisor->current_node = node;
+                break;
             }
-
-            if (hypervisor->head_node == NULL)
-                hypervisor->head_node = node;
-            else
-                current_node->next = node;
-
-            current_node = node;
-            break;
-        }
         default:
             break;
         }
     }
 
     return hypervisor;
+}
+
+static void switchNode(Hypervisor* hypervisor)
+{
+    hypervisor->current_node = (hypervisor->current_node->next != NULL)
+                                   ? hypervisor->current_node->next
+                                   : hypervisor->head_node;
+
+    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
+}
+
+static void dumpProcessorState(Node* node)
+{
+    for (int i = 0; i < 32; i++)
+    {
+        fprintf(stdout, "R%d=%d\n", i, node->processor.registers[i]);
+    }
+}
+
+static bool runNode(Hypervisor* hypervisor)
+{
+    ssize_t chars_read;
+    char* line = NULL;
+    size_t len = 0;
+    bool has_error = false;
+
+    while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
+    {
+        line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
+        debug("Running instruction \"%s\"\n", line);
+
+        SplitStringContainer* strings = split_string(line, " ");
+
+        if (strings == NULL)
+        {
+            has_error = true;
+            break;
+        }
+
+        if (strings->count == 1 && strcmp(strings->strings[0], "DUMP_PROCESSOR_STATE") == 0)
+        {
+            dumpProcessorState(hypervisor->current_node);
+        }
+
+        teardown_split_string_container(strings);
+    }
+
+    if (chars_read == -1)
+        hypervisor->current_node->socket.has_pending_instructions = false;
+
+    return has_error;
+}
+
+static void runHypervisor(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->head_node == NULL)
+        return;
+
+    switchNode(hypervisor);
+
+    while (hypervisor->active_nodes > 0)
+    {
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+        {
+            switchNode(hypervisor);
+            continue;
+        }
+
+        if (runNode(hypervisor))
+            break;
+
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+            hypervisor->active_nodes -= 1;
+
+        switchNode(hypervisor);
+    }
 }
 
 int main(const int argc, char* argv[])
@@ -404,6 +514,7 @@ int main(const int argc, char* argv[])
     if (hypervisor == NULL)
         return 1;
 
+    runHypervisor(hypervisor);
     teardownHypervisor(hypervisor);
 
     return 0;

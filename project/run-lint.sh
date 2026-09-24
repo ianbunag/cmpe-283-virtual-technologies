@@ -5,4 +5,4 @@ flawfinder myvmm.c
 
 echo ""
 echo "------ Performing DAST with Valgrind ------"
-valgrind ./myvmm -v noop_assembly_file -v noop_assembly_file
+valgrind ./myvmm -v assembly_file_vm1 -v assembly_file_vm2
