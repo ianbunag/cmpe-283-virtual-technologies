@@ -10,8 +10,6 @@
 #define COLOR_YELLOW "\033[0;33m"
 #define COLOR_RESET "\033[0m"
 
-// @TODO naming convention
-
 static bool debug_enabled = false;
 
 /* Flawfinder: ignore - gcc format attribute */
@@ -72,7 +70,7 @@ typedef struct SplitStringContainer
     char** strings;
 } SplitStringContainer;
 
-static bool validateArgs(int argc, char* argv[])
+static bool validate_args(int argc, char* argv[])
 {
     if (argc == 1)
     {
@@ -172,7 +170,7 @@ static SplitStringContainer* split_string(char* input, const char* delimiter)
     return container;
 }
 
-static void teardownNodeConfig(NodeConfig* config)
+static void teardown_node_config(NodeConfig* config)
 {
     if (config == NULL)
         return;
@@ -194,7 +192,7 @@ static void teardownNodeConfig(NodeConfig* config)
     memset(config, 0, sizeof(NodeConfig));
 }
 
-static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
+static bool setup_node_config(char* assembly_file_name, NodeConfig* config)
 {
     memset(config, 0, sizeof(NodeConfig));
     config->assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
@@ -212,7 +210,7 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
     if (assembly_file == NULL)
     {
         fprintf(stderr, "Error: configuration \"%s\" cannot be opened.\n", assembly_file_name);
-        teardownNodeConfig(config);
+        teardown_node_config(config);
         return false;
     }
 
@@ -261,14 +259,14 @@ static bool setupNodeConfig(char* assembly_file_name, NodeConfig* config)
 
     if (has_error)
     {
-        teardownNodeConfig(config);
+        teardown_node_config(config);
         return false;
     }
 
     return true;
 }
 
-static void teardownNodeSocket(NodeSocket* socket)
+static void teardown_node_socket(NodeSocket* socket)
 {
     if (socket == NULL)
         return;
@@ -282,7 +280,7 @@ static void teardownNodeSocket(NodeSocket* socket)
     socket->has_pending_instructions = false;
 }
 
-static bool setupNodeSocket(char* vm_binary, NodeSocket* socket)
+static bool setup_node_socket(char* vm_binary, NodeSocket* socket)
 {
     memset(socket, 0, sizeof(NodeSocket));
 
@@ -306,7 +304,7 @@ static bool setupNodeSocket(char* vm_binary, NodeSocket* socket)
     return true;
 }
 
-static void resetNodeProcessor(NodeProcessor* processor)
+static void reset_node_processor(NodeProcessor* processor)
 {
     if (processor == NULL)
         return;
@@ -319,20 +317,20 @@ static void resetNodeProcessor(NodeProcessor* processor)
     processor->program_counter = 0;
 }
 
-static void teardownNode(Node* node)
+static void teardown_node(Node* node)
 {
     if (node == NULL)
         return;
 
-    teardownNodeConfig(&node->config);
-    teardownNodeSocket(&node->socket);
-    resetNodeProcessor(&node->processor);
+    teardown_node_config(&node->config);
+    teardown_node_socket(&node->socket);
+    reset_node_processor(&node->processor);
 
     memset(node, 0, sizeof(Node));
     free(node);
 }
 
-static Node* setupNode(char* assembly_file_name)
+static Node* setup_node(char* assembly_file_name)
 {
     Node* node = calloc(1, sizeof(Node));
 
@@ -342,24 +340,24 @@ static Node* setupNode(char* assembly_file_name)
         return NULL;
     }
 
-    if (!setupNodeConfig(assembly_file_name, &node->config))
+    if (!setup_node_config(assembly_file_name, &node->config))
     {
-        teardownNode(node);
+        teardown_node(node);
         return NULL;
     }
 
-    if (!setupNodeSocket(node->config.vm_binary, &node->socket))
+    if (!setup_node_socket(node->config.vm_binary, &node->socket))
     {
-        teardownNode(node);
+        teardown_node(node);
         return NULL;
     }
 
-    resetNodeProcessor(&node->processor);
+    reset_node_processor(&node->processor);
 
     return node;
 }
 
-static void teardownHypervisor(Hypervisor* hypervisor)
+static void teardown_hypervisor(Hypervisor* hypervisor)
 {
     if (hypervisor == NULL)
         return;
@@ -371,7 +369,7 @@ static void teardownHypervisor(Hypervisor* hypervisor)
     while (current_node != NULL)
     {
         Node* next = current_node->next;
-        teardownNode(current_node);
+        teardown_node(current_node);
         current_node = next;
     }
 
@@ -379,7 +377,7 @@ static void teardownHypervisor(Hypervisor* hypervisor)
     free(hypervisor);
 }
 
-static Hypervisor* setupHypervisor(int argc, char* argv[])
+static Hypervisor* setup_hypervisor(int argc, char* argv[])
 {
     Hypervisor* hypervisor = calloc(1, sizeof(Hypervisor));
     if (hypervisor == NULL)
@@ -403,11 +401,11 @@ static Hypervisor* setupHypervisor(int argc, char* argv[])
         case 'v':
             {
                 debug("Node = \"%s\"\n", optarg);
-                Node* node = setupNode(optarg);
+                Node* node = setup_node(optarg);
 
                 if (node == NULL)
                 {
-                    teardownHypervisor(hypervisor);
+                    teardown_hypervisor(hypervisor);
                     return NULL;
                 }
 
@@ -428,7 +426,7 @@ static Hypervisor* setupHypervisor(int argc, char* argv[])
     return hypervisor;
 }
 
-static void switchNode(Hypervisor* hypervisor)
+static void switch_node(Hypervisor* hypervisor)
 {
     hypervisor->current_node = (hypervisor->current_node->next != NULL)
                                    ? hypervisor->current_node->next
@@ -437,7 +435,7 @@ static void switchNode(Hypervisor* hypervisor)
     debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
 }
 
-static void dumpProcessorState(Node* node)
+static void dump_processor_state(Node* node)
 {
     for (int i = 0; i < 32; i++)
     {
@@ -445,7 +443,7 @@ static void dumpProcessorState(Node* node)
     }
 }
 
-static bool runNode(Hypervisor* hypervisor)
+static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
     char* line = NULL;
@@ -467,10 +465,11 @@ static bool runNode(Hypervisor* hypervisor)
 
         if (strings->count == 1 && strcmp(strings->strings[0], "DUMP_PROCESSOR_STATE") == 0)
         {
-            dumpProcessorState(hypervisor->current_node);
+            dump_processor_state(hypervisor->current_node);
         }
 
         teardown_split_string_container(strings);
+        hypervisor->current_node->processor.program_counter += 1;
     }
 
     if (chars_read == -1)
@@ -479,43 +478,43 @@ static bool runNode(Hypervisor* hypervisor)
     return has_error;
 }
 
-static void runHypervisor(Hypervisor* hypervisor)
+static void run_hypervisor(Hypervisor* hypervisor)
 {
     if (hypervisor == NULL || hypervisor->head_node == NULL)
         return;
 
-    switchNode(hypervisor);
+    switch_node(hypervisor);
 
     while (hypervisor->active_nodes > 0)
     {
         if (!hypervisor->current_node->socket.has_pending_instructions)
         {
-            switchNode(hypervisor);
+            switch_node(hypervisor);
             continue;
         }
 
-        if (runNode(hypervisor))
+        if (run_node(hypervisor))
             break;
 
         if (!hypervisor->current_node->socket.has_pending_instructions)
             hypervisor->active_nodes -= 1;
 
-        switchNode(hypervisor);
+        switch_node(hypervisor);
     }
 }
 
 int main(const int argc, char* argv[])
 {
-    if (!validateArgs(argc, argv))
+    if (!validate_args(argc, argv))
         return 1;
 
-    Hypervisor* hypervisor = setupHypervisor(argc, argv);
+    Hypervisor* hypervisor = setup_hypervisor(argc, argv);
 
     if (hypervisor == NULL)
         return 1;
 
-    runHypervisor(hypervisor);
-    teardownHypervisor(hypervisor);
+    run_hypervisor(hypervisor);
+    teardown_hypervisor(hypervisor);
 
     return 0;
 }
