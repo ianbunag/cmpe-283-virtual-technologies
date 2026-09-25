@@ -27,6 +27,7 @@ set -euo pipefail
 # It should support instructions
 ./run-test.sh "it_should_load_immediate" ./myvmm -v tests/load_immediate_assembly_file
 ./run-test.sh "it_should_add" ./myvmm -v tests/add_assembly_file
+./run-test.sh "it_should_sub" ./myvmm -v tests/sub_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file

@@ -40,6 +40,7 @@ typedef struct InstructionPatterns
     regex_t dump_register_state;
     regex_t load_immediate;
     regex_t add;
+    regex_t sub;
 } InstructionPatterns;
 
 typedef struct Patterns
@@ -49,6 +50,7 @@ typedef struct Patterns
     bool _is_dump_register_state_initialized;
     bool _is_load_immediate_initialized;
     bool _is_add_initialized;
+    bool _is_sub_initialized;
     NodePatterns node;
     InstructionPatterns instruction;
 } Patterns;
@@ -82,6 +84,9 @@ static void teardown_matched_pattern(MatchedPattern* match)
 
 static bool match_pattern(const char* string, const regex_t* pattern, const size_t max_groups, MatchedPattern* match)
 {
+    if (match->has_error)
+        return false;
+
     if (string == NULL || pattern == NULL || match == NULL)
         return false;
 
@@ -270,6 +275,21 @@ static void add(NodeProcessor* processor, const char* raw_destination_key, const
     set_register(processor, raw_destination_key, source_value_1 + source_value_2);
 }
 
+static void sub(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
+                const char* raw_source_key_2)
+{
+    int32_t source_value_1;
+    int32_t source_value_2;
+
+    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
+        *processor, raw_source_key_2, &source_value_2))
+    {
+        return;
+    }
+
+    set_register(processor, raw_destination_key, source_value_1 - source_value_2);
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -302,6 +322,11 @@ static bool run_node(Hypervisor* hypervisor)
         else if (match_pattern(line, &hypervisor->patterns.instruction.add, 3, match))
         {
             add(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
+                match->capture_groups[2]);
+        }
+        else if (match_pattern(line, &hypervisor->patterns.instruction.sub, 3, match))
+        {
+            sub(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
                 match->capture_groups[2]);
         }
         else
@@ -575,6 +600,12 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         regfree(&patterns->instruction.add);
         patterns->_is_add_initialized = false;
     }
+
+    if (patterns->_is_sub_initialized)
+    {
+        regfree(&patterns->instruction.sub);
+        patterns->_is_sub_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -633,6 +664,15 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return false;
     }
     patterns->_is_add_initialized = true;
+
+    if (regcomp(&patterns->instruction.sub,
+                "^[[:space:]]*sub[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("sub", patterns);
+        return false;
+    }
+    patterns->_is_sub_initialized = true;
 
     return true;
 }
