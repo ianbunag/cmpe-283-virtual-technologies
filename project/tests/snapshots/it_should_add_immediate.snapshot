@@ -1,0 +1,42 @@
+Error: Invalid register "$32"
+Error: Invalid register "$32"
+Unknown instruction "addi $-1,$1,10"
+Unknown instruction "addi $13,$-1,10"
+Unknown instruction "addi $1,$2"
+Unknown instruction "addi $1,$2,3,4"
+Unknown instruction "addi $1,2,3"
+Unknown instruction "addi $one,$2,3"
+Unknown instruction "addi $1,$two,3"
+Unknown instruction "addi $1,$2,three"
+R0=0
+R1=25
+R2=25
+R3=25
+R4=25
+R5=15
+R6=30
+R7=25
+R8=42
+R9=2147483647
+R10=-2147483648
+R11=-2147483648
+R12=2147483647
+R13=0
+R14=0
+R15=0
+R16=0
+R17=0
+R18=0
+R19=0
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0

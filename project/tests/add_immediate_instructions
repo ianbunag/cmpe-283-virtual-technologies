@@ -1,0 +1,24 @@
+li $1,10
+addi $2,$1,15
+ addi $3 , $1 , 15 
+addi  $4,  $1,  15
+addi $1,$1,15
+addi $5,$1,-10
+addi $6,$1,+5
+addi $7,$1,0
+addi $8,$0,42
+li $9,2147483647
+addi $10,$9,1
+li $11,-2147483648
+addi $12,$11,-1
+addi $32,$1,10
+addi $13,$32,10
+addi $-1,$1,10
+addi $13,$-1,10
+addi $1,$2
+addi $1,$2,3,4
+addi $1,2,3
+addi $one,$2,3
+addi $1,$two,3
+addi $1,$2,three
+DUMP_PROCESSOR_STATE
