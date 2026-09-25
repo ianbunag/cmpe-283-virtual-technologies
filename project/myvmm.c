@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <ctype.h>
+#include <regex.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
@@ -29,108 +29,128 @@ static void debug(const char* format, ...)
     va_end(args);
 }
 
-// https://stackoverflow.com/a/1726321
-static void remove_spaces(char* s)
+typedef struct NodePatterns
 {
-    char* d = s;
+    regex_t vm_binary;
+} NodePatterns;
 
-    do
-    {
-        while (isspace((unsigned char)*d))
-        {
-            ++d;
-        }
-    }
-    while (*s++ = *d++);
-}
-
-typedef struct SplitStringContainer
+typedef struct InstructionPatterns
 {
-    char* original;
-    size_t original_length;
-    size_t capacity;
-    size_t count;
-    char** strings;
-} SplitStringContainer;
+    regex_t dump_processor_state;
+    regex_t load_immediate;
+} InstructionPatterns;
 
-static void teardown_split_string_container(SplitStringContainer* container)
+typedef struct Patterns
 {
-    if (container == NULL)
+    bool _is_vm_binary_initialized;
+    bool _is_dump_processor_state_initialized;
+    bool _is_load_immediate_initialized;
+    NodePatterns node;
+    InstructionPatterns instruction;
+} Patterns;
+
+typedef struct MatchedPattern
+{
+    bool is_match;
+    bool has_error;
+    char** capture_groups;
+} MatchedPattern;
+
+static void teardown_matched_pattern(MatchedPattern* match)
+{
+    if (match == NULL)
         return;
 
-    if (container->original != NULL)
+    if (match->capture_groups != NULL)
     {
-        memset(container->original, 0, container->original_length);
-        free(container->original);
-        container->original = NULL;
+        for (size_t i = 0; match->capture_groups[i] != NULL; i++)
+        {
+            free(match->capture_groups[i]);
+            match->capture_groups[i] = NULL;
+        }
+        free(match->capture_groups);
+        match->capture_groups = NULL;
     }
 
-    if (container->strings != NULL)
-    {
-        // Strings are automatically zeroed out when container->original was cleaned up.
-        free(container->strings);
-        container->strings = NULL;
-    }
-
-    memset(container, 0, sizeof(SplitStringContainer));
-    free(container);
+    memset(match, 0, sizeof(MatchedPattern));
+    free(match);
 }
 
-static SplitStringContainer* split_string(char* input, const char* delimiter)
+static bool match_pattern(const char* string, const regex_t* pattern, const size_t max_groups, MatchedPattern* match)
 {
-    SplitStringContainer* container = calloc(1, sizeof(SplitStringContainer));
+    if (string == NULL || pattern == NULL || match == NULL)
+        return false;
 
-    if (container == NULL)
+    regmatch_t matched_groups[max_groups + 1];
+
+    if (regexec(pattern, string, max_groups + 1, matched_groups, 0) != 0)
+        return false;
+
+    match->is_match = true;
+
+    if (max_groups > 0)
     {
-        fprintf(stderr, "Error: SplitStringContainer memory allocation failed.\n");
-        return NULL;
-    }
+        match->capture_groups = calloc(max_groups + 1, sizeof(char*));
 
-    container->original = strndup(input, MAX_LINE_LEN);
-    container->original_length = strnlen(input, MAX_LINE_LEN);
-    container->capacity = 1;
-    container->count = 0;
-    container->strings = calloc(container->capacity, sizeof(char*));
-
-    if (container->original == NULL)
-    {
-        fprintf(stderr, "Error: SplitStringContainer.original string duplication failed.\n");
-        teardown_split_string_container(container);
-        return NULL;
-    }
-
-    if (container->strings == NULL)
-    {
-        fprintf(stderr, "Error: SplitStringContainer.strings memory allocation failed.\n");
-        teardown_split_string_container(container);
-        return NULL;
-    }
-
-    char* saveptr = NULL;
-    char* string = strtok_r(container->original, delimiter, &saveptr);
-
-    while (string != NULL)
-    {
-        if (container->count >= container->capacity)
+        if (match->capture_groups == NULL)
         {
-            container->capacity *= 2;
-            char** reallocated_strings = realloc(container->strings, container->capacity * sizeof(char*));
-
-            if (reallocated_strings == NULL)
-            {
-                fprintf(stderr, "Error: SplitStringContainer.strings memory reallocation failed.\n");
-                teardown_split_string_container(container);
-                return NULL;
-            }
-
-            container->strings = reallocated_strings;
+            fprintf(stderr, "Error: MatchedPattern->capture_groups memory allocation failed.\n");
+            match->has_error = true;
+            return false;
         }
 
-        container->strings[container->count++] = string;
-        string = strtok_r(NULL, delimiter, &saveptr);
+        for (size_t i = 0; i < max_groups; i++)
+        {
+            size_t group_idx = i + 1;
+
+            if (matched_groups[group_idx].rm_so == -1 || matched_groups[group_idx].rm_eo == -1)
+            {
+                match->capture_groups[i] = NULL;
+                break;
+            }
+
+            const size_t match_len = matched_groups[group_idx].rm_eo - matched_groups[group_idx].rm_so;
+            match->capture_groups[i] = strndup(string + matched_groups[group_idx].rm_so, match_len);
+        }
     }
 
-    return container;
+    return true;
+}
+
+static bool initialize_matched_pattern(MatchedPattern** pattern)
+{
+    if (pattern == NULL)
+        return false;
+
+    if (*pattern == NULL)
+    {
+        *pattern = calloc(1, sizeof(MatchedPattern));
+        if (*pattern == NULL)
+        {
+            fprintf(stderr, "Error: MatchedPattern memory allocation failed.\n");
+            return false;
+        }
+        (*pattern)->has_error = false;
+        return true;
+    }
+
+    if ((*pattern)->has_error)
+        return false;
+
+    (*pattern)->is_match = false;
+
+    if ((*pattern)->capture_groups != NULL)
+    {
+        for (size_t i = 0; (*pattern)->capture_groups[i] != NULL; i++)
+        {
+            free((*pattern)->capture_groups[i]);
+            (*pattern)->capture_groups[i] = NULL;
+        }
+        free((*pattern)->capture_groups);
+        (*pattern)->capture_groups = NULL;
+    }
+
+    return true;
 }
 
 typedef struct NodeConfig
@@ -163,125 +183,155 @@ typedef struct Hypervisor
 {
     Node* head_node;
     Node* current_node;
+    Patterns patterns;
     unsigned int active_nodes;
 } Hypervisor;
 
-static bool validate_args(int argc, char* argv[])
+static bool get_register_key(const char* raw_key, int8_t* key)
 {
-    if (argc == 1)
+    char* endptr = NULL;
+    const long converted_key = strtol(raw_key, &endptr, 10);
+
+    if (endptr == raw_key || *endptr != '\0' || converted_key < 0 || converted_key > 31)
     {
-        fprintf(stdout, "No argument provided, exiting.\n");
+        fprintf(stderr, "Error: Invalid register \"$%s\"\n", raw_key);
+
         return false;
     }
 
-    for (int i = 1; i < argc; i++)
-    {
-        if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
-        {
-            fprintf(stderr, "Error: argument exceeds maximum allowed length of %d.\n", MAX_ARG_LEN);
-            return false;
-        }
-    }
+    *key = (int8_t)converted_key;
 
     return true;
 }
 
-static void teardown_node_config(NodeConfig* config)
+static bool get_register(const NodeProcessor* processor, const char* raw_key, int32_t* value)
 {
-    if (config == NULL)
-        return;
+    int8_t key;
 
-    if (config->assembly_file_name != NULL)
-    {
-        memset(config->assembly_file_name, 0, strnlen(config->assembly_file_name, MAX_ARG_LEN));
-        free(config->assembly_file_name);
-        config->assembly_file_name = NULL;
-    }
+    if (!get_register_key(raw_key, &key))
+        return false;
 
-    if (config->vm_binary != NULL)
-    {
-        memset(config->vm_binary, 0, strnlen(config->vm_binary, MAX_LINE_LEN));
-        free(config->vm_binary);
-        config->vm_binary = NULL;
-    }
-
-    memset(config, 0, sizeof(NodeConfig));
+    *value = processor->registers[key];
+    return true;
 }
 
-static bool setup_node_config(char* assembly_file_name, NodeConfig* config)
+static void set_register(NodeProcessor* processor, const char* raw_key, const char* raw_value)
 {
-    memset(config, 0, sizeof(NodeConfig));
-    config->assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
-    debug("NodeConfig->assembly_file_name = \"%s\"\n", config->assembly_file_name);
+    int8_t key;
 
-    if (config->assembly_file_name == NULL)
+    if (!get_register_key(raw_key, &key))
     {
-        fprintf(stderr, "Error: NodeConfig.assembly_file_name memory allocation failed.\n");
-        return false;
+        return;
     }
 
-    /* Flawfinder: ignore - file name supplied by user. */
-    FILE* assembly_file = fopen(assembly_file_name, "r");
+    processor->registers[key] = (int32_t)strtol(raw_value, NULL, 10);
+    debug("NodeProcessor->registers[%d] = %d\n", key, processor->registers[key]);
+}
 
-    if (assembly_file == NULL)
+static void load_immediate(Node* node, const char* raw_key, const char* raw_value)
+{
+    set_register(&node->processor, raw_key, raw_value);
+}
+
+static void dump_processor_state(const Node* node)
+{
+    for (int i = 0; i < 32; i++)
     {
-        fprintf(stderr, "Error: configuration \"%s\" cannot be opened.\n", assembly_file_name);
-        teardown_node_config(config);
-        return false;
+        fprintf(stdout, "R%d=%d\n", i, node->processor.registers[i]);
     }
+}
 
+static bool run_node(Hypervisor* hypervisor)
+{
+    ssize_t chars_read;
     char* line = NULL;
     size_t len = 0;
-    bool has_error = false;
+    MatchedPattern* match = NULL;
 
-    while (getline(&line, &len, assembly_file) != -1)
+    while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
     {
-        remove_spaces(line);
-        SplitStringContainer* lines = split_string(line, "=");
+        line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
+        debug("Running instruction \"%s\"\n", line);
 
-        if (lines == NULL)
+        if (!initialize_matched_pattern(&match))
         {
-            has_error = true;
-            break;
+            return false;
         }
 
-        if (lines->count == 2)
+        if (match_pattern(line, &hypervisor->patterns.instruction.dump_processor_state, 0, match))
         {
-            if (strcmp(lines->strings[0], "vm_binary") == 0)
-            {
-                if (config->vm_binary != NULL)
-                    free(config->vm_binary);
-
-                config->vm_binary = strndup(lines->strings[1], MAX_LINE_LEN);
-                debug("NodeConfig->vm_binary = \"%s\"\n", config->vm_binary);
-
-                if (config->vm_binary == NULL)
-                {
-                    fprintf(stderr, "Error: NodeConfig.vm_binary memory allocation failed.\n");
-                    has_error = true;
-                }
-            }
+            dump_processor_state(hypervisor->current_node);
+        }
+        else if (match_pattern(line, &hypervisor->patterns.instruction.load_immediate, 2, match))
+        {
+            load_immediate(hypervisor->current_node, match->capture_groups[0], match->capture_groups[1]);
+        }
+        else
+        {
+            fprintf(stderr, "Unknown instruction \"%s\"\n", line);
         }
 
-        teardown_split_string_container(lines);
-
-        if (has_error)
-        {
-            break;
-        }
+        hypervisor->current_node->processor.program_counter += 1;
     }
 
-    fclose(assembly_file);
+    if (chars_read == -1)
+        hypervisor->current_node->socket.has_pending_instructions = false;
+
+    teardown_matched_pattern(match);
+
     if (line != NULL)
         free(line);
 
-    if (has_error)
-    {
-        teardown_node_config(config);
+    return true;
+}
+
+static void switch_node(Hypervisor* hypervisor)
+{
+    hypervisor->current_node = (hypervisor->current_node->next != NULL)
+                                   ? hypervisor->current_node->next
+                                   : hypervisor->head_node;
+
+    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
+}
+
+static bool run_hypervisor(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->head_node == NULL)
         return false;
+
+    switch_node(hypervisor);
+
+    while (hypervisor->active_nodes > 0)
+    {
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+        {
+            switch_node(hypervisor);
+            continue;
+        }
+
+        if (!run_node(hypervisor))
+            return false;
+
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+            hypervisor->active_nodes -= 1;
+
+        switch_node(hypervisor);
     }
 
     return true;
+}
+
+static void reset_node_processor(NodeProcessor* processor)
+{
+    if (processor == NULL)
+        return;
+
+    for (int i = 0; i < 32; i++)
+    {
+        processor->registers[i] = 0;
+    }
+
+    processor->program_counter = 0;
 }
 
 static void teardown_node_socket(NodeSocket* socket)
@@ -322,17 +372,95 @@ static bool setup_node_socket(char* vm_binary, NodeSocket* socket)
     return true;
 }
 
-static void reset_node_processor(NodeProcessor* processor)
+static void teardown_node_config(NodeConfig* config)
 {
-    if (processor == NULL)
+    if (config == NULL)
         return;
 
-    for (int i = 0; i < 32; i++)
+    if (config->assembly_file_name != NULL)
     {
-        processor->registers[i] = 0;
+        memset(config->assembly_file_name, 0, strnlen(config->assembly_file_name, MAX_ARG_LEN));
+        free(config->assembly_file_name);
+        config->assembly_file_name = NULL;
     }
 
-    processor->program_counter = 0;
+    if (config->vm_binary != NULL)
+    {
+        memset(config->vm_binary, 0, strnlen(config->vm_binary, MAX_LINE_LEN));
+        free(config->vm_binary);
+        config->vm_binary = NULL;
+    }
+
+    memset(config, 0, sizeof(NodeConfig));
+}
+
+static bool setup_node_config(char* assembly_file_name, NodeConfig* config, const Patterns* patterns)
+{
+    memset(config, 0, sizeof(NodeConfig));
+    config->assembly_file_name = strndup(assembly_file_name, MAX_LINE_LEN);
+    debug("NodeConfig->assembly_file_name = \"%s\"\n", config->assembly_file_name);
+
+    if (config->assembly_file_name == NULL)
+    {
+        fprintf(stderr, "Error: NodeConfig.assembly_file_name memory allocation failed.\n");
+        return false;
+    }
+
+    /* Flawfinder: ignore - file name supplied by user. */
+    FILE* assembly_file = fopen(assembly_file_name, "r");
+
+    if (assembly_file == NULL)
+    {
+        fprintf(stderr, "Error: configuration \"%s\" cannot be opened.\n", assembly_file_name);
+        teardown_node_config(config);
+        return false;
+    }
+
+    char* line = NULL;
+    size_t len = 0;
+    bool has_error = false;
+    MatchedPattern* match = NULL;
+
+    while (getline(&line, &len, assembly_file) != -1)
+    {
+        if (!initialize_matched_pattern(&match))
+        {
+            has_error = true;
+            break;
+        }
+
+        if (match_pattern(line, &patterns->node.vm_binary, 1, match))
+        {
+            if (config->vm_binary != NULL)
+                free(config->vm_binary);
+
+            config->vm_binary = strndup(match->capture_groups[0], MAX_LINE_LEN);
+            debug("NodeConfig->vm_binary = \"%s\"\n", config->vm_binary);
+
+            if (config->vm_binary == NULL)
+            {
+                fprintf(stderr, "Error: NodeConfig.vm_binary memory allocation failed.\n");
+                has_error = true;
+            }
+        }
+
+        if (has_error)
+            break;
+    }
+
+    fclose(assembly_file);
+    teardown_matched_pattern(match);
+
+    if (line != NULL)
+        free(line);
+
+    if (has_error)
+    {
+        teardown_node_config(config);
+        return false;
+    }
+
+    return true;
 }
 
 static void teardown_node(Node* node)
@@ -348,7 +476,7 @@ static void teardown_node(Node* node)
     free(node);
 }
 
-static Node* setup_node(char* assembly_file_name)
+static Node* setup_node(char* assembly_file_name, const Patterns* patterns)
 {
     Node* node = calloc(1, sizeof(Node));
 
@@ -358,7 +486,7 @@ static Node* setup_node(char* assembly_file_name)
         return NULL;
     }
 
-    if (!setup_node_config(assembly_file_name, &node->config))
+    if (!setup_node_config(assembly_file_name, &node->config, patterns))
     {
         teardown_node(node);
         return NULL;
@@ -375,10 +503,78 @@ static Node* setup_node(char* assembly_file_name)
     return node;
 }
 
+static void teardown_hypervisor_patterns(Patterns* patterns)
+{
+    if (patterns == NULL)
+        return;
+
+    if (patterns->_is_vm_binary_initialized)
+    {
+        regfree(&patterns->node.vm_binary);
+        patterns->_is_vm_binary_initialized = false;
+    }
+
+    if (patterns->_is_dump_processor_state_initialized)
+    {
+        regfree(&patterns->instruction.dump_processor_state);
+        patterns->_is_dump_processor_state_initialized = false;
+    }
+
+    if (patterns->_is_load_immediate_initialized)
+    {
+        regfree(&patterns->instruction.load_immediate);
+        patterns->_is_load_immediate_initialized = false;
+    }
+}
+
+static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
+{
+    fprintf(stderr, "Error: Failed to compile \"%s\" regex pattern.\n", failed_pattern);
+    teardown_hypervisor_patterns(patterns);
+    return false;
+}
+
+static bool setup_hypervisor_patterns(Patterns* patterns)
+{
+    if (patterns == NULL)
+        return false;
+
+    memset(patterns, 0, sizeof(Patterns));
+
+    if (regcomp(&patterns->node.vm_binary,
+                "^[[:space:]]*vm_binary[[:space:]]*=[[:space:]]*([^[:space:]]+)[[:space:]]*$", REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("vm_binary", patterns);
+        return false;
+    }
+    patterns->_is_vm_binary_initialized = true;
+
+    if (regcomp(&patterns->instruction.dump_processor_state, "^[[:space:]]*DUMP_PROCESSOR_STATE[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("dump_processor_state", patterns);
+        return false;
+    }
+    patterns->_is_dump_processor_state_initialized = true;
+
+    if (regcomp(&patterns->instruction.load_immediate,
+                "^[[:space:]]*li[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("load_immediate", patterns);
+        return false;
+    }
+    patterns->_is_load_immediate_initialized = true;
+
+    return true;
+}
+
 static void teardown_hypervisor(Hypervisor* hypervisor)
 {
     if (hypervisor == NULL)
         return;
+
+    teardown_hypervisor_patterns(&hypervisor->patterns);
 
     Node* current_node = hypervisor->head_node;
     hypervisor->head_node = NULL;
@@ -398,9 +594,16 @@ static void teardown_hypervisor(Hypervisor* hypervisor)
 static Hypervisor* setup_hypervisor(int argc, char* argv[])
 {
     Hypervisor* hypervisor = calloc(1, sizeof(Hypervisor));
+
     if (hypervisor == NULL)
     {
         fprintf(stderr, "Error: Hypervisor memory allocation failed.\n");
+        return NULL;
+    }
+
+    if (!setup_hypervisor_patterns(&hypervisor->patterns))
+    {
+        teardown_hypervisor(hypervisor);
         return NULL;
     }
 
@@ -419,7 +622,7 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
         case 'v':
             {
                 debug("Node = \"%s\"\n", optarg);
-                Node* node = setup_node(optarg);
+                Node* node = setup_node(optarg, &hypervisor->patterns);
 
                 if (node == NULL)
                 {
@@ -444,168 +647,24 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
     return hypervisor;
 }
 
-static void switch_node(Hypervisor* hypervisor)
+static bool validate_args(int argc, char* argv[])
 {
-    hypervisor->current_node = (hypervisor->current_node->next != NULL)
-                                   ? hypervisor->current_node->next
-                                   : hypervisor->head_node;
-
-    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
-}
-
-static void dump_processor_state(Node* node)
-{
-    for (int i = 0; i < 32; i++)
+    if (argc == 1)
     {
-        fprintf(stdout, "R%d=%d\n", i, node->processor.registers[i]);
-    }
-}
-
-
-// @TODO normalize spaces
-static bool get_register_key(const char* raw_key, int8_t* key)
-{
-    int numeric_part;
-
-    if (sscanf(raw_key, "$%d", &numeric_part) != 1 || numeric_part < 0 || numeric_part > 31)
-    {
-        // @TODO test this case
-        fprintf(stderr, "Error: Could not parse register key \"%s\"\n", raw_key);
-
+        fprintf(stderr, "No argument provided, exiting.\n");
         return false;
     }
 
-
-    *key = (int8_t)numeric_part;
+    for (int i = 1; i < argc; i++)
+    {
+        if (argv[i] != NULL && strnlen(argv[i], MAX_ARG_LEN + 1) > MAX_ARG_LEN)
+        {
+            fprintf(stderr, "Error: argument exceeds maximum allowed length of %d.\n", MAX_ARG_LEN);
+            return false;
+        }
+    }
 
     return true;
-}
-
-static void set_register(NodeProcessor* processor, const char* raw_key, const char* raw_value)
-{
-    int8_t key;
-
-    if (!get_register_key(raw_key, &key))
-    {
-        return;
-    }
-
-    int32_t value;
-
-    if (sscanf(raw_value, "%d", &value) != 1)
-    {
-        // @TODO test this case
-        fprintf(stderr, "Error: Could not parse register value \"%s\"\n", raw_value);
-        return;
-    }
-
-    processor->registers[key] = value;
-    debug("NodeProcessor->registers[%d] = %d\n", key, value);
-}
-
-// @TODO check in consumers if value was updated
-static void get_register(const NodeProcessor* processor, const char* raw_key, int32_t* value)
-{
-    int8_t key;
-
-    if (!get_register_key(raw_key, &key))
-    {
-        return;
-    }
-
-    *value = processor->registers[key];
-}
-
-static bool load_immediate(Node* node, char* raw_parameters)
-{
-    SplitStringContainer* parameters = split_string(raw_parameters, ",");
-
-    if (parameters == NULL)
-    {
-        return false;
-    }
-
-    if (parameters->count == 2)
-    {
-        set_register(&node->processor, parameters->strings[0], parameters->strings[1]);
-    }
-
-    teardown_split_string_container(parameters);
-
-    return true;
-}
-
-static bool run_node(Hypervisor* hypervisor)
-{
-    ssize_t chars_read;
-    char* line = NULL;
-    size_t len = 0;
-    bool has_error = false;
-
-    while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
-    {
-        line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
-        debug("Running instruction \"%s\"\n", line);
-
-        SplitStringContainer* instructions = split_string(line, " ");
-
-        if (instructions == NULL)
-        {
-            has_error = true;
-            break;
-        }
-
-        if (instructions->count == 1 && strcmp(instructions->strings[0], "DUMP_PROCESSOR_STATE") == 0)
-        {
-            dump_processor_state(hypervisor->current_node);
-        }
-        else if (instructions->count == 2)
-        {
-            if (strcmp(instructions->strings[0], "li") == 0)
-            {
-                has_error = !load_immediate(hypervisor->current_node, instructions->strings[1]);
-            }
-        }
-
-        teardown_split_string_container(instructions);
-        hypervisor->current_node->processor.program_counter += 1;
-
-        if (has_error)
-            break;
-    }
-
-    if (chars_read == -1)
-        hypervisor->current_node->socket.has_pending_instructions = false;
-
-    if (line != NULL)
-        free(line);
-
-    return has_error;
-}
-
-static void run_hypervisor(Hypervisor* hypervisor)
-{
-    if (hypervisor == NULL || hypervisor->head_node == NULL)
-        return;
-
-    switch_node(hypervisor);
-
-    while (hypervisor->active_nodes > 0)
-    {
-        if (!hypervisor->current_node->socket.has_pending_instructions)
-        {
-            switch_node(hypervisor);
-            continue;
-        }
-
-        if (run_node(hypervisor))
-            break;
-
-        if (!hypervisor->current_node->socket.has_pending_instructions)
-            hypervisor->active_nodes -= 1;
-
-        switch_node(hypervisor);
-    }
 }
 
 int main(const int argc, char* argv[])
@@ -618,8 +677,12 @@ int main(const int argc, char* argv[])
     if (hypervisor == NULL)
         return 1;
 
-    run_hypervisor(hypervisor);
-    teardown_hypervisor(hypervisor);
+    if (!run_hypervisor(hypervisor))
+    {
+        teardown_hypervisor(hypervisor);
+        return 1;
+    }
 
+    teardown_hypervisor(hypervisor);
     return 0;
 }

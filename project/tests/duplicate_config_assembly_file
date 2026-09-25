@@ -1,0 +1,2 @@
+vm_binary=tests/load_immediate_instructions
+vm_binary=tests/noop_instructions
