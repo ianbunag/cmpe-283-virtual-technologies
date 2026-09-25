@@ -1,2 +1,2 @@
 ./build.sh
-./myvmm -d -v tests/load_immediate_assembly_file
+./myvmm -d -v assembly_file_vm2

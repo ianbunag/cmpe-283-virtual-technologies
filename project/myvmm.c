@@ -37,14 +37,18 @@ typedef struct NodePatterns
 typedef struct InstructionPatterns
 {
     regex_t dump_processor_state;
+    regex_t dump_register_state;
     regex_t load_immediate;
+    regex_t add;
 } InstructionPatterns;
 
 typedef struct Patterns
 {
     bool _is_vm_binary_initialized;
     bool _is_dump_processor_state_initialized;
+    bool _is_dump_register_state_initialized;
     bool _is_load_immediate_initialized;
+    bool _is_add_initialized;
     NodePatterns node;
     InstructionPatterns instruction;
 } Patterns;
@@ -204,18 +208,18 @@ static bool get_register_key(const char* raw_key, int8_t* key)
     return true;
 }
 
-static bool get_register(const NodeProcessor* processor, const char* raw_key, int32_t* value)
+static bool get_register(const NodeProcessor processor, const char* raw_key, int32_t* value)
 {
     int8_t key;
 
     if (!get_register_key(raw_key, &key))
         return false;
 
-    *value = processor->registers[key];
+    *value = processor.registers[key];
     return true;
 }
 
-static void set_register(NodeProcessor* processor, const char* raw_key, const char* raw_value)
+static void set_register(NodeProcessor* processor, const char* raw_key, int32_t value)
 {
     int8_t key;
 
@@ -224,21 +228,46 @@ static void set_register(NodeProcessor* processor, const char* raw_key, const ch
         return;
     }
 
-    processor->registers[key] = (int32_t)strtol(raw_value, NULL, 10);
+    processor->registers[key] = value;
     debug("NodeProcessor->registers[%d] = %d\n", key, processor->registers[key]);
+}
+
+static void dump_processor_state(const NodeProcessor processor)
+{
+    for (int i = 0; i < 32; i++)
+    {
+        fprintf(stdout, "R%d=%d\n", i, processor.registers[i]);
+    }
+}
+
+static void dump_register_state(const NodeProcessor processor, const char* raw_key)
+{
+    int32_t value;
+
+    if (get_register(processor, raw_key, &value))
+    {
+        fprintf(stdout, "R%s=%d\n", raw_key, value);
+    }
 }
 
 static void load_immediate(Node* node, const char* raw_key, const char* raw_value)
 {
-    set_register(&node->processor, raw_key, raw_value);
+    set_register(&node->processor, raw_key, (int32_t)strtol(raw_value, NULL, 10));
 }
 
-static void dump_processor_state(const Node* node)
+static void add(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
+                const char* raw_source_key_2)
 {
-    for (int i = 0; i < 32; i++)
+    int32_t source_value_1;
+    int32_t source_value_2;
+
+    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
+        *processor, raw_source_key_2, &source_value_2))
     {
-        fprintf(stdout, "R%d=%d\n", i, node->processor.registers[i]);
+        return;
     }
+
+    set_register(processor, raw_destination_key, source_value_1 + source_value_2);
 }
 
 static bool run_node(Hypervisor* hypervisor)
@@ -260,11 +289,20 @@ static bool run_node(Hypervisor* hypervisor)
 
         if (match_pattern(line, &hypervisor->patterns.instruction.dump_processor_state, 0, match))
         {
-            dump_processor_state(hypervisor->current_node);
+            dump_processor_state(hypervisor->current_node->processor);
+        }
+        else if (match_pattern(line, &hypervisor->patterns.instruction.dump_register_state, 1, match))
+        {
+            dump_register_state(hypervisor->current_node->processor, match->capture_groups[0]);
         }
         else if (match_pattern(line, &hypervisor->patterns.instruction.load_immediate, 2, match))
         {
             load_immediate(hypervisor->current_node, match->capture_groups[0], match->capture_groups[1]);
+        }
+        else if (match_pattern(line, &hypervisor->patterns.instruction.add, 3, match))
+        {
+            add(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
+                match->capture_groups[2]);
         }
         else
         {
@@ -520,10 +558,22 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->_is_dump_processor_state_initialized = false;
     }
 
+    if (patterns->_is_dump_register_state_initialized)
+    {
+        regfree(&patterns->instruction.dump_register_state);
+        patterns->_is_dump_register_state_initialized = false;
+    }
+
     if (patterns->_is_load_immediate_initialized)
     {
         regfree(&patterns->instruction.load_immediate);
         patterns->_is_load_immediate_initialized = false;
+    }
+
+    if (patterns->_is_add_initialized)
+    {
+        regfree(&patterns->instruction.add);
+        patterns->_is_add_initialized = false;
     }
 }
 
@@ -557,6 +607,15 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     }
     patterns->_is_dump_processor_state_initialized = true;
 
+    if (regcomp(&patterns->instruction.dump_register_state,
+                "^[[:space:]]*DUMP_REGISTER_STATE[[:space:]]+\\$([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("dump_register_state", patterns);
+        return false;
+    }
+    patterns->_is_dump_register_state_initialized = true;
+
     if (regcomp(&patterns->instruction.load_immediate,
                 "^[[:space:]]*li[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
@@ -565,6 +624,15 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return false;
     }
     patterns->_is_load_immediate_initialized = true;
+
+    if (regcomp(&patterns->instruction.add,
+                "^[[:space:]]*add[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("add", patterns);
+        return false;
+    }
+    patterns->_is_add_initialized = true;
 
     return true;
 }
