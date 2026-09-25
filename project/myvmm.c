@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <regex.h>
+#include <stdint.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
@@ -42,6 +43,7 @@ typedef struct InstructionPatterns
     regex_t add;
     regex_t sub;
     regex_t add_immediate;
+    regex_t add_unsigned;
 } InstructionPatterns;
 
 typedef struct Patterns
@@ -53,6 +55,7 @@ typedef struct Patterns
     bool _is_add_initialized;
     bool _is_sub_initialized;
     bool _is_add_immediate_initialized;
+    bool _is_add_unsigned_initialized;
     NodePatterns node;
     InstructionPatterns instruction;
 } Patterns;
@@ -305,6 +308,21 @@ static void add_immediate(NodeProcessor* processor, const char* raw_destination_
     set_register(processor, raw_destination_key, source_value + (int32_t)strtol(raw_value, NULL, 10));
 }
 
+static void add_unsigned(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
+                         const char* raw_source_key_2)
+{
+    int32_t source_value_1;
+    int32_t source_value_2;
+
+    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
+        *processor, raw_source_key_2, &source_value_2))
+    {
+        return;
+    }
+
+    set_register(processor, raw_destination_key, (int32_t)((uint32_t)source_value_1 + (uint32_t)source_value_2));
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -348,6 +366,14 @@ static bool run_node(Hypervisor* hypervisor)
         {
             add_immediate(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
                           match->capture_groups[2]);
+        }
+        // @TODO differentiate add and addu.
+        // @TODO move max_groups to config.
+        // @TODO pass in capture groups for cleaner code.
+        else if (match_pattern(line, &hypervisor->patterns.instruction.add_unsigned, 3, match))
+        {
+            add_unsigned(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
+                         match->capture_groups[2]);
         }
         else
         {
@@ -632,6 +658,12 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         regfree(&patterns->instruction.add_immediate);
         patterns->_is_add_immediate_initialized = false;
     }
+
+    if (patterns->_is_add_unsigned_initialized)
+    {
+        regfree(&patterns->instruction.add_unsigned);
+        patterns->_is_add_unsigned_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -708,6 +740,15 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return false;
     }
     patterns->_is_add_immediate_initialized = true;
+
+    if (regcomp(&patterns->instruction.add_unsigned,
+                "^[[:space:]]*addu[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+    {
+        fail_setup_hypervisor_pattern("add_unsigned", patterns);
+        return false;
+    }
+    patterns->_is_add_unsigned_initialized = true;
 
     return true;
 }
