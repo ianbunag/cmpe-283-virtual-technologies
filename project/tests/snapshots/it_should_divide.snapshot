@@ -1,0 +1,68 @@
+Exception: Division by zero in "div $1,$0"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "div $-1,$1"
+Exception: Unknown instruction "div $1"
+Exception: Unknown instruction "div $1,$2,$3"
+Exception: Unknown instruction "div $1,2"
+Exception: Unknown instruction "div $one,$2"
+Rhi=0
+Rlow=2
+Rhi=0
+Rlow=2
+Rhi=0
+Rlow=2
+Rhi=2
+Rlow=6
+Rhi=0
+Rlow=42
+Rhi=0
+Rlow=1
+Rhi=1
+Rlow=-2
+Rhi=-1
+Rlow=-2
+Rhi=-1
+Rlow=2
+Rhi=0
+Rlow=-2147483648
+Rhi=0
+Rlow=5
+Rhi=0
+Rlow=10
+Rhi=20
+Rlow=0
+R0=0
+R1=20
+R2=10
+R3=20
+R4=3
+R5=42
+R6=1
+R7=7
+R8=-3
+R9=-7
+R10=3
+R11=-7
+R12=-3
+R13=-2147483648
+R14=-1
+R15=0
+R16=0
+R17=0
+R18=0
+R19=0
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=20
+Rlow=0

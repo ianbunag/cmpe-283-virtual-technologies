@@ -51,6 +51,7 @@ typedef struct Patterns
     Pattern addiu;
     Pattern mul;
     Pattern mult;
+    Pattern div;
 } Patterns;
 
 typedef struct Match
@@ -417,6 +418,34 @@ static void multiply(NodeProcessor* processor, const Match* match)
     set_register(processor, "low", (int32_t)(unsigned_product & 0xFFFFFFFF));
 }
 
+static void divide(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[0], &value_1) || !get_register(
+        processor, match->capture_groups[1], &value_2))
+    {
+        return;
+    }
+
+    if (value_2 == 0)
+    {
+        fprintf(stderr, "Exception: Division by zero in \"%s\"\n", match->original);
+        return;
+    }
+
+    if (value_1 == INT32_MIN && value_2 == -1)
+    {
+        set_register(processor, "hi", 0);
+        set_register(processor, "low", INT32_MIN);
+        return;
+    }
+
+    set_register(processor, "hi", value_1 % value_2);
+    set_register(processor, "low", value_1 / value_2);
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -458,6 +487,8 @@ static bool run_node(Hypervisor* hypervisor)
             multiply_without_overflow(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.mult, match))
             multiply(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.div, match))
+            divide(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -781,6 +812,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->mult.groups = 0;
         patterns->mult.is_initialized = false;
     }
+
+    if (patterns->div.is_initialized)
+    {
+        regfree(&patterns->div.pattern);
+        patterns->div.groups = 0;
+        patterns->div.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -819,7 +857,7 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     if (regcomp(&patterns->li.pattern,
                 "^[[:space:]]*li[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-        return fail_setup_hypervisor_pattern("load_immediate", patterns);
+        return fail_setup_hypervisor_pattern("li", patterns);
     patterns->li.groups = 2;
     patterns->li.is_initialized = true;
 
@@ -840,28 +878,28 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     if (regcomp(&patterns->addi.pattern,
                 "^[[:space:]]*addi[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-        return fail_setup_hypervisor_pattern("add_immediate", patterns);
+        return fail_setup_hypervisor_pattern("addi", patterns);
     patterns->addi.groups = 3;
     patterns->addi.is_initialized = true;
 
     if (regcomp(&patterns->addu.pattern,
                 "^[[:space:]]*addu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-        return fail_setup_hypervisor_pattern("add_unsigned", patterns);
+        return fail_setup_hypervisor_pattern("addu", patterns);
     patterns->addu.groups = 3;
     patterns->addu.is_initialized = true;
 
     if (regcomp(&patterns->subu.pattern,
                 "^[[:space:]]*subu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-        return fail_setup_hypervisor_pattern("sub_unsigned", patterns);
+        return fail_setup_hypervisor_pattern("subu", patterns);
     patterns->subu.groups = 3;
     patterns->subu.is_initialized = true;
 
     if (regcomp(&patterns->addiu.pattern,
                 "^[[:space:]]*addiu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-        return fail_setup_hypervisor_pattern("add_immediate_unsigned", patterns);
+        return fail_setup_hypervisor_pattern("addiu", patterns);
     patterns->addiu.groups = 3;
     patterns->addiu.is_initialized = true;
 
@@ -878,6 +916,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("mult", patterns);
     patterns->mult.groups = 2;
     patterns->mult.is_initialized = true;
+
+    if (regcomp(&patterns->div.pattern,
+                "^[[:space:]]*div[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("div", patterns);
+    patterns->div.groups = 2;
+    patterns->div.is_initialized = true;
 
     return true;
 }
