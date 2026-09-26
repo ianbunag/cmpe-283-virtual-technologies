@@ -52,6 +52,7 @@ typedef struct Patterns
     Pattern mul;
     Pattern mult;
     Pattern div;
+    Pattern and;
 } Patterns;
 
 typedef struct Match
@@ -446,6 +447,20 @@ static void divide(NodeProcessor* processor, const Match* match)
     set_register(processor, "low", value_1 / value_2);
 }
 
+static void and(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], value_1 & value_2);
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -489,6 +504,8 @@ static bool run_node(Hypervisor* hypervisor)
             multiply(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.div, match))
             divide(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.and, match))
+            and(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -819,6 +836,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->div.groups = 0;
         patterns->div.is_initialized = false;
     }
+
+    if (patterns->and.is_initialized)
+    {
+        regfree(&patterns->and.pattern);
+        patterns->and.groups = 0;
+        patterns->and.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -923,6 +947,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("div", patterns);
     patterns->div.groups = 2;
     patterns->div.is_initialized = true;
+
+    if (regcomp(&patterns->and.pattern,
+                "^[[:space:]]*and[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("and", patterns);
+    patterns->and.groups = 3;
+    patterns->and.is_initialized = true;
 
     return true;
 }

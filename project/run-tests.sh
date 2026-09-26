@@ -36,6 +36,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_multiply_without_overflow" ./myvmm -v tests/multiply_without_overflow_assembly_file
 ./run-test.sh "$@" "it_should_multiply" ./myvmm -v tests/multiply_assembly_file
 ./run-test.sh "$@" "it_should_divide" ./myvmm -v tests/divide_assembly_file
+./run-test.sh "$@" "it_should_and" ./myvmm -v tests/and_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file

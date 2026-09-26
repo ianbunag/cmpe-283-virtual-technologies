@@ -1,0 +1,35 @@
+li $1,15
+li $2,7
+and $3,$1,$2
+ and $4 , $1 , $2 
+and  $5,  $1,  $2
+and $1,$1,$2
+li $6,-1
+li $7,42
+and $8,$6,$7
+li $9,0
+and $10,$7,$9
+li $11,240
+li $12,15
+and $13,$11,$12
+li $14,-10
+li $15,-25
+and $16,$14,$15
+li $hi,255
+li $low,15
+and $17,$hi,$low
+and $18,$hi,$7
+and $19,$2,$low
+and $low,$hi,$1
+DUMP_REGISTER_STATE $low
+and $hi,$1,$2
+DUMP_REGISTER_STATE $hi
+and $32,$1,$2
+and $20,$32,$2
+and $20,$1,$32
+and $-1,$1,$2
+and $1,$2
+and $1,$2,$3,$4
+and $1,2,$3
+and $one,$2,$3
+DUMP_PROCESSOR_STATE
