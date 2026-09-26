@@ -1,0 +1,67 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "mult $-1,$1"
+Exception: Unknown instruction "mult $1"
+Exception: Unknown instruction "mult $1,$2,$3"
+Exception: Unknown instruction "mult $1,2"
+Exception: Unknown instruction "mult $one,$2"
+Rhi=0
+Rlow=200
+Rhi=0
+Rlow=200
+Rhi=0
+Rlow=200
+Rhi=0
+Rlow=0
+Rhi=0
+Rlow=42
+Rhi=-1
+Rlow=-75
+Rhi=0
+Rlow=250
+Rhi=0
+Rlow=-294967296
+Rhi=2
+Rlow=1410065408
+Rhi=-3
+Rlow=-1410065408
+Rhi=0
+Rlow=200
+Rhi=0
+Rlow=100
+Rhi=0
+Rlow=400
+R0=0
+R1=10
+R2=20
+R3=42
+R4=1
+R5=-5
+R6=15
+R7=-10
+R8=-25
+R9=2000000000
+R10=2
+R11=100000
+R12=100000
+R13=-100000
+R14=0
+R15=0
+R16=0
+R17=0
+R18=0
+R19=0
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=0
+Rlow=400
