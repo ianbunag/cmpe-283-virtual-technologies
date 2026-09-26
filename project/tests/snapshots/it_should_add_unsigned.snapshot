@@ -1,11 +1,11 @@
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Unknown instruction "addu $-1,$1,$2"
-Error: Unknown instruction "addu $1,$2"
-Error: Unknown instruction "addu $1,$2,$3,$4"
-Error: Unknown instruction "addu $1,2,$3"
-Error: Unknown instruction "addu $one,$2,$3"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "addu $-1,$1,$2"
+Exception: Unknown instruction "addu $1,$2"
+Exception: Unknown instruction "addu $1,$2,$3,$4"
+Exception: Unknown instruction "addu $1,2,$3"
+Exception: Unknown instruction "addu $one,$2,$3"
 R0=0
 R1=30
 R2=20

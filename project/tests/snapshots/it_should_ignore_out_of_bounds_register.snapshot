@@ -1,5 +1,5 @@
-Error: Unknown instruction "li $-1,-1"
-Error: Invalid register "$32"
+Exception: Unknown instruction "li $-1,-1"
+Exception: Invalid register "$32"
 R0=0
 R1=0
 R2=0

@@ -1,13 +1,13 @@
-Error: Unknown instruction "li $ 8,8 "
-Error: Unknown instruction "li $9,x"
-Error: Unknown instruction "li $-1,-1"
-Error: Unknown instruction "li $10"
-Error: Unknown instruction "li $11,"
-Error: Unknown instruction "li ,12"
-Error: Unknown instruction "li $13,13,13"
-Error: Unknown instruction "li 14,14"
-Error: Unknown instruction "li $fifteen,15"
-Error: Unknown instruction "li $,16"
+Exception: Unknown instruction "li $ 8,8 "
+Exception: Unknown instruction "li $9,x"
+Exception: Unknown instruction "li $-1,-1"
+Exception: Unknown instruction "li $10"
+Exception: Unknown instruction "li $11,"
+Exception: Unknown instruction "li ,12"
+Exception: Unknown instruction "li $13,13,13"
+Exception: Unknown instruction "li 14,14"
+Exception: Unknown instruction "li $fifteen,15"
+Exception: Unknown instruction "li $,16"
 R0=0
 R1=1
 R2=2

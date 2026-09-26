@@ -1,11 +1,13 @@
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Unknown instruction "add $-1,$1,$2"
-Error: Unknown instruction "add $1,$2"
-Error: Unknown instruction "add $1,$2,$3,$4"
-Error: Unknown instruction "add $1,2,$3"
-Error: Unknown instruction "add $one,$2,$3"
+Exception: Integer overflow in "add $16,$14,$15"
+Exception: Integer overflow in "add $19,$17,$18"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "add $-1,$1,$2"
+Exception: Unknown instruction "add $1,$2"
+Exception: Unknown instruction "add $1,$2,$3,$4"
+Exception: Unknown instruction "add $1,2,$3"
+Exception: Unknown instruction "add $one,$2,$3"
 R0=0
 R1=30
 R2=20
@@ -22,10 +24,10 @@ R12=42
 R13=42
 R14=2147483647
 R15=1
-R16=-2147483648
+R16=0
 R17=-2147483648
 R18=-1
-R19=2147483647
+R19=0
 R20=0
 R21=0
 R22=0

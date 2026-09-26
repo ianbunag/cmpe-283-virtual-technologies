@@ -1,11 +1,13 @@
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Invalid register "$32"
-Error: Unknown instruction "sub $-1,$1,$2"
-Error: Unknown instruction "sub $1,$2"
-Error: Unknown instruction "sub $1,$2,$3,$4"
-Error: Unknown instruction "sub $1,2,$3"
-Error: Unknown instruction "sub $one,$2,$3"
+Exception: Integer overflow in "sub $17,$15,$16"
+Exception: Integer overflow in "sub $20,$18,$19"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "sub $-1,$1,$2"
+Exception: Unknown instruction "sub $1,$2"
+Exception: Unknown instruction "sub $1,$2,$3,$4"
+Exception: Unknown instruction "sub $1,2,$3"
+Exception: Unknown instruction "sub $one,$2,$3"
 R0=0
 R1=10
 R2=0
@@ -23,10 +25,10 @@ R13=42
 R14=-42
 R15=-2147483648
 R16=1
-R17=2147483647
+R17=0
 R18=2147483647
 R19=-1
-R20=-2147483648
+R20=0
 R21=0
 R22=0
 R23=0

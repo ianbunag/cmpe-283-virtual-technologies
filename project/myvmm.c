@@ -53,6 +53,7 @@ typedef struct Match
 {
     bool is_match;
     bool has_error;
+    const char* original;
     char** capture_groups;
 } Match;
 
@@ -87,6 +88,7 @@ static bool match_pattern(const char* string, const Pattern* pattern, Match* mat
         return false;
 
     match->is_match = true;
+    match->original = string;
 
     if (pattern->groups > 0)
     {
@@ -138,6 +140,7 @@ static bool initialize_match(Match** match)
         return false;
 
     (*match)->is_match = false;
+    (*match)->original = NULL;
 
     if ((*match)->capture_groups != NULL)
     {
@@ -194,7 +197,7 @@ static bool get_register_key(const char* raw_key, int8_t* key)
 
     if (endptr == raw_key || *endptr != '\0' || converted_key < 0 || converted_key > 31)
     {
-        fprintf(stderr, "Error: Invalid register \"$%s\"\n", raw_key);
+        fprintf(stderr, "Exception: Invalid register \"$%s\"\n", raw_key);
 
         return false;
     }
@@ -236,73 +239,97 @@ static void dump_processor_state(const NodeProcessor* processor)
     }
 }
 
-static void dump_register_state(const NodeProcessor* processor, char** arguments)
+static void dump_register_state(const NodeProcessor* processor, const Match* match)
 {
     int32_t value;
 
-    if (get_register(processor, arguments[0], &value))
+    if (get_register(processor, match->capture_groups[0], &value))
     {
-        fprintf(stdout, "R%s=%d\n", arguments[0], value);
+        fprintf(stdout, "R%s=%d\n", match->capture_groups[0], value);
     }
 }
 
-static void load_immediate(Node* node, char** arguments)
+static void load_immediate(Node* node, const Match* match)
 {
-    set_register(&node->processor, arguments[0], (int32_t)strtol(arguments[1], NULL, 10));
+    set_register(&node->processor, match->capture_groups[0], (int32_t)strtol(match->capture_groups[1], NULL, 10));
 }
 
-static void add(NodeProcessor* processor, char** arguments)
-{
-    int32_t value_1;
-    int32_t value_2;
-
-    if (!get_register(processor, arguments[1], &value_1) || !get_register(
-        processor, arguments[2], &value_2))
-    {
-        return;
-    }
-
-    set_register(processor, arguments[0], value_1 + value_2);
-}
-
-static void sub(NodeProcessor* processor, char** arguments)
+static void add(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
     int32_t value_2;
 
-    if (!get_register(processor, arguments[1], &value_1) || !get_register(
-        processor, arguments[2], &value_2))
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
     {
         return;
     }
 
-    set_register(processor, arguments[0], value_1 - value_2);
-}
+    const int64_t sum = (int64_t)value_1 + (int64_t)value_2;
 
-static void add_immediate(NodeProcessor* processor, char** arguments)
-{
-    int32_t value_1;
-
-    if (!get_register(processor, arguments[1], &value_1))
+    if (sum < INT32_MIN || sum > INT32_MAX)
     {
+        fprintf(stderr, "Exception: Integer overflow in \"%s\"\n", match->original);
         return;
     }
 
-    set_register(processor, arguments[0], value_1 + (int32_t)strtol(arguments[2], NULL, 10));
+    set_register(processor, match->capture_groups[0], (int32_t)sum);
 }
 
-static void add_unsigned(NodeProcessor* processor, char** arguments)
+static void sub(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
     int32_t value_2;
 
-    if (!get_register(processor, arguments[1], &value_1) || !get_register(
-        processor, arguments[2], &value_2))
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
     {
         return;
     }
 
-    set_register(processor, arguments[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
+    const int64_t difference = (int64_t)value_1 - (int64_t)value_2;
+
+    if (difference < INT32_MIN || difference > INT32_MAX)
+    {
+        fprintf(stderr, "Exception: Integer overflow in \"%s\"\n", match->original);
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], (int32_t)difference);
+}
+
+static void add_immediate(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1))
+    {
+        return;
+    }
+
+    const int64_t sum = (int64_t)value_1 + (int64_t)strtol(match->capture_groups[2], NULL, 10);
+
+    if (sum < INT32_MIN || sum > INT32_MAX)
+    {
+        fprintf(stderr, "Exception: Integer overflow in \"%s\"\n", match->original);
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], (int32_t)sum);
+}
+
+static void add_unsigned(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
 }
 
 static bool run_node(Hypervisor* hypervisor)
@@ -330,32 +357,31 @@ static bool run_node(Hypervisor* hypervisor)
         }
         else if (match_pattern(line, &hypervisor->patterns.dump_register_state, match))
         {
-            dump_register_state(&hypervisor->current_node->processor, match->capture_groups);
+            dump_register_state(&hypervisor->current_node->processor, match);
         }
         else if (match_pattern(line, &hypervisor->patterns.load_immediate, match))
         {
-            load_immediate(hypervisor->current_node, match->capture_groups);
+            load_immediate(hypervisor->current_node, match);
         }
         else if (match_pattern(line, &hypervisor->patterns.add, match))
         {
-            add(&hypervisor->current_node->processor, match->capture_groups);
+            add(&hypervisor->current_node->processor, match);
         }
         else if (match_pattern(line, &hypervisor->patterns.sub, match))
         {
-            sub(&hypervisor->current_node->processor, match->capture_groups);
+            sub(&hypervisor->current_node->processor, match);
         }
         else if (match_pattern(line, &hypervisor->patterns.add_immediate, match))
         {
-            add_immediate(&hypervisor->current_node->processor, match->capture_groups);
+            add_immediate(&hypervisor->current_node->processor, match);
         }
-        // @TODO differentiate add and addu.
         else if (match_pattern(line, &hypervisor->patterns.add_unsigned, match))
         {
-            add_unsigned(&hypervisor->current_node->processor, match->capture_groups);
+            add_unsigned(&hypervisor->current_node->processor, match);
         }
         else
         {
-            fprintf(stderr, "Error: Unknown instruction \"%s\"\n", line);
+            fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
         }
 
         hypervisor->current_node->processor.program_counter += 1;
