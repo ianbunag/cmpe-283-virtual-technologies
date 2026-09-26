@@ -49,6 +49,7 @@ typedef struct Patterns
     Pattern add_unsigned;
     Pattern sub_unsigned;
     Pattern add_immediate_unsigned;
+    Pattern mul;
 } Patterns;
 
 typedef struct Match
@@ -383,6 +384,20 @@ static void add_immediate_unsigned(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
 }
 
+static void mul(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 * (uint32_t)value_2));
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -437,6 +452,11 @@ static bool run_node(Hypervisor* hypervisor)
         else if (match_pattern(line, &hypervisor->patterns.add_immediate_unsigned, match))
         {
             add_immediate_unsigned(&hypervisor->current_node->processor, match);
+        }
+        else if (match_pattern(line, &hypervisor->patterns.mul, match))
+        {
+            // @TODO NAMING
+            mul(&hypervisor->current_node->processor, match);
         }
         else
         {
@@ -749,6 +769,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->add_immediate_unsigned.groups = 0;
         patterns->add_immediate_unsigned.is_initialized = false;
     }
+
+    if (patterns->mul.is_initialized)
+    {
+        regfree(&patterns->mul.pattern);
+        patterns->mul.groups = 0;
+        patterns->mul.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -832,6 +859,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("add_immediate_unsigned", patterns);
     patterns->add_immediate_unsigned.groups = 3;
     patterns->add_immediate_unsigned.is_initialized = true;
+
+    if (regcomp(&patterns->mul.pattern,
+                "^[[:space:]]*mul[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("mul", patterns);
+    patterns->mul.groups = 3;
+    patterns->mul.is_initialized = true;
 
     return true;
 }

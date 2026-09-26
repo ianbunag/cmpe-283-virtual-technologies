@@ -4,11 +4,12 @@ set -euo pipefail
 
 ./build.sh
 
-# @TODO re-enable
+# It should run example files @TODO reenable
 #./run-test.sh "it_should_run_assembly_file_vm1" ./myvmm -v assembly_file_vm1
 #./run-test.sh "it_should_run_assembly_file_vm2" ./myvmm -v assembly_file_vm2
 #./run-test.sh "it_should_run_assembly_file_vm1_and_vm2" ./myvmm -v assembly_file_vm1 -v assembly_file_vm2
 
+# It should be configurable
 ./run-test.sh "$@" "it_should_print_debug_statements" ./myvmm -d -v tests/debug_assembly_file
 
 # It should handle configuration errors
@@ -32,6 +33,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_add_unsigned" ./myvmm -v tests/add_unsigned_assembly_file
 ./run-test.sh "$@" "it_should_sub_unsigned" ./myvmm -v tests/sub_unsigned_assembly_file
 ./run-test.sh "$@" "it_should_add_immediate_unsigned" ./myvmm -v tests/add_immediate_unsigned_assembly_file
+./run-test.sh "$@" "it_should_mul" ./myvmm -v tests/mul_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
