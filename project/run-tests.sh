@@ -31,6 +31,7 @@ set -euo pipefail
 ./run-test.sh "it_should_add_immediate" ./myvmm -v tests/add_immediate_assembly_file
 ./run-test.sh "it_should_add_unsigned" ./myvmm -v tests/add_unsigned_assembly_file
 ./run-test.sh "it_should_sub_unsigned" ./myvmm -v tests/sub_unsigned_assembly_file
+./run-test.sh "it_should_add_immediate_unsigned" ./myvmm -v tests/add_immediate_unsigned_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
