@@ -53,6 +53,7 @@ typedef struct Patterns
     Pattern mult;
     Pattern div;
     Pattern and;
+    Pattern or;
 } Patterns;
 
 typedef struct Match
@@ -461,6 +462,20 @@ static void and(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], value_1 & value_2);
 }
 
+static void or(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], value_1 | value_2);
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -506,6 +521,8 @@ static bool run_node(Hypervisor* hypervisor)
             divide(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.and, match))
             and(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.or, match))
+            or(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -843,6 +860,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->and.groups = 0;
         patterns->and.is_initialized = false;
     }
+
+    if (patterns->or.is_initialized)
+    {
+        regfree(&patterns->or.pattern);
+        patterns->or.groups = 0;
+        patterns->or.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -954,6 +978,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("and", patterns);
     patterns->and.groups = 3;
     patterns->and.is_initialized = true;
+
+    if (regcomp(&patterns->or.pattern,
+                "^[[:space:]]*or[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("or", patterns);
+    patterns->or.groups = 3;
+    patterns->or.is_initialized = true;
 
     return true;
 }
