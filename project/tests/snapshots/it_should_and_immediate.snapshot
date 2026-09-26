@@ -1,0 +1,46 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "andi $-1,$1,7"
+Exception: Unknown instruction "andi $15,$-1,7"
+Exception: Unknown instruction "andi $1,7"
+Exception: Unknown instruction "andi $1,$2,3,4"
+Exception: Unknown instruction "andi $1,2,3"
+Exception: Unknown instruction "andi $one,$2,3"
+Exception: Unknown instruction "andi $1,$two,3"
+Exception: Unknown instruction "andi $1,$2,three"
+Rlow=15
+Rhi=7
+R0=0
+R1=7
+R2=7
+R3=7
+R4=7
+R5=42
+R6=42
+R7=0
+R8=240
+R9=0
+R10=-10
+R11=-26
+R12=15
+R13=7
+R14=255
+R15=0
+R16=0
+R17=0
+R18=0
+R19=0
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=7
+Rlow=15

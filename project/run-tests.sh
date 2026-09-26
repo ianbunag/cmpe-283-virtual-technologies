@@ -38,6 +38,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_divide" ./myvmm -v tests/divide_assembly_file
 ./run-test.sh "$@" "it_should_and" ./myvmm -v tests/and_assembly_file
 ./run-test.sh "$@" "it_should_or" ./myvmm -v tests/or_assembly_file
+./run-test.sh "$@" "it_should_and_immediate" ./myvmm -v tests/and_immediate_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
