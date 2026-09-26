@@ -1,0 +1,40 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "subu $-1,$1,$2"
+Exception: Unknown instruction "subu $1,$2"
+Exception: Unknown instruction "subu $1,$2,$3,$4"
+Exception: Unknown instruction "subu $1,2,$3"
+Exception: Unknown instruction "subu $one,$2,$3"
+R0=0
+R1=10
+R2=0
+R3=10
+R4=10
+R5=10
+R6=5
+R7=15
+R8=-10
+R9=-10
+R10=-25
+R11=15
+R12=42
+R13=42
+R14=-42
+R15=-2147483648
+R16=1
+R17=2147483647
+R18=2147483647
+R19=-1
+R20=-2147483648
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
