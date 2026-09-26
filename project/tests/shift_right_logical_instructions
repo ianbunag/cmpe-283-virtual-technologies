@@ -1,0 +1,38 @@
+li $1,64
+srl $2,$1,4
+ srl $3 , $1 , 4 
+srl  $4,  $1,  4
+srl $1,$1,4
+srl $5,$1,0
+srl $6,$1,1
+li $7,-1
+srl $8,$7,1
+srl $9,$7,4
+srl $10,$7,31
+li $11,-2147483648
+srl $12,$11,31
+srl $13,$11,1
+li $14,0
+srl $15,$14,10
+li $16,42
+srl $17,$16,32
+li $hi,80
+li $low,40
+srl $18,$hi,2
+srl $19,$low,3
+srl $low,$hi,1
+DUMP_REGISTER_STATE $low
+srl $hi,$1,1
+DUMP_REGISTER_STATE $hi
+srl $32,$1,4
+srl $20,$32,4
+srl $-1,$1,4
+srl $20,$-1,4
+srl $1,4
+srl $1,$2,3,4
+srl $1,2,3
+srl $one,$2,3
+srl $1,$two,3
+srl $1,$2,three
+srl $1,$2,-4
+DUMP_PROCESSOR_STATE

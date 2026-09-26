@@ -8,6 +8,7 @@ Exception: Unknown instruction "sll $1,2,3"
 Exception: Unknown instruction "sll $one,$2,3"
 Exception: Unknown instruction "sll $1,$two,3"
 Exception: Unknown instruction "sll $1,$2,three"
+Exception: Unknown instruction "sll $1,$2,-4"
 Rlow=10
 Rhi=64
 R0=0

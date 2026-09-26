@@ -1,0 +1,47 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "srl $-1,$1,4"
+Exception: Unknown instruction "srl $20,$-1,4"
+Exception: Unknown instruction "srl $1,4"
+Exception: Unknown instruction "srl $1,$2,3,4"
+Exception: Unknown instruction "srl $1,2,3"
+Exception: Unknown instruction "srl $one,$2,3"
+Exception: Unknown instruction "srl $1,$two,3"
+Exception: Unknown instruction "srl $1,$2,three"
+Exception: Unknown instruction "srl $1,$2,-4"
+Rlow=40
+Rhi=2
+R0=0
+R1=4
+R2=4
+R3=4
+R4=4
+R5=4
+R6=2
+R7=-1
+R8=2147483647
+R9=268435455
+R10=1
+R11=-2147483648
+R12=1
+R13=1073741824
+R14=0
+R15=0
+R16=42
+R17=42
+R18=20
+R19=5
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=2
+Rlow=40

@@ -32,4 +32,5 @@ sll $1,2,3
 sll $one,$2,3
 sll $1,$two,3
 sll $1,$2,three
+sll $1,$2,-4
 DUMP_PROCESSOR_STATE
