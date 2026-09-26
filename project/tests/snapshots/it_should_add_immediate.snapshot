@@ -1,13 +1,13 @@
 Error: Invalid register "$32"
 Error: Invalid register "$32"
-Unknown instruction "addi $-1,$1,10"
-Unknown instruction "addi $13,$-1,10"
-Unknown instruction "addi $1,$2"
-Unknown instruction "addi $1,$2,3,4"
-Unknown instruction "addi $1,2,3"
-Unknown instruction "addi $one,$2,3"
-Unknown instruction "addi $1,$two,3"
-Unknown instruction "addi $1,$2,three"
+Error: Unknown instruction "addi $-1,$1,10"
+Error: Unknown instruction "addi $13,$-1,10"
+Error: Unknown instruction "addi $1,$2"
+Error: Unknown instruction "addi $1,$2,3,4"
+Error: Unknown instruction "addi $1,2,3"
+Error: Unknown instruction "addi $one,$2,3"
+Error: Unknown instruction "addi $1,$two,3"
+Error: Unknown instruction "addi $1,$2,three"
 R0=0
 R1=25
 R2=25

@@ -30,44 +30,33 @@ static void debug(const char* format, ...)
     va_end(args);
 }
 
-typedef struct NodePatterns
+typedef struct Pattern
 {
-    regex_t vm_binary;
-} NodePatterns;
-
-typedef struct InstructionPatterns
-{
-    regex_t dump_processor_state;
-    regex_t dump_register_state;
-    regex_t load_immediate;
-    regex_t add;
-    regex_t sub;
-    regex_t add_immediate;
-    regex_t add_unsigned;
-} InstructionPatterns;
+    regex_t pattern;
+    int8_t groups;
+    bool is_initialized;
+} Pattern;
 
 typedef struct Patterns
 {
-    bool _is_vm_binary_initialized;
-    bool _is_dump_processor_state_initialized;
-    bool _is_dump_register_state_initialized;
-    bool _is_load_immediate_initialized;
-    bool _is_add_initialized;
-    bool _is_sub_initialized;
-    bool _is_add_immediate_initialized;
-    bool _is_add_unsigned_initialized;
-    NodePatterns node;
-    InstructionPatterns instruction;
+    Pattern vm_binary;
+    Pattern dump_processor_state;
+    Pattern dump_register_state;
+    Pattern load_immediate;
+    Pattern add;
+    Pattern sub;
+    Pattern add_immediate;
+    Pattern add_unsigned;
 } Patterns;
 
-typedef struct MatchedPattern
+typedef struct Match
 {
     bool is_match;
     bool has_error;
     char** capture_groups;
-} MatchedPattern;
+} Match;
 
-static void teardown_matched_pattern(MatchedPattern* match)
+static void teardown_match(Match* match)
 {
     if (match == NULL)
         return;
@@ -83,37 +72,34 @@ static void teardown_matched_pattern(MatchedPattern* match)
         match->capture_groups = NULL;
     }
 
-    memset(match, 0, sizeof(MatchedPattern));
+    memset(match, 0, sizeof(Match));
     free(match);
 }
 
-static bool match_pattern(const char* string, const regex_t* pattern, const size_t max_groups, MatchedPattern* match)
+static bool match_pattern(const char* string, const Pattern* pattern, Match* match)
 {
-    if (match->has_error)
+    if (string == NULL || pattern == NULL || match == NULL || match->has_error)
         return false;
 
-    if (string == NULL || pattern == NULL || match == NULL)
-        return false;
+    regmatch_t matched_groups[pattern->groups + 1];
 
-    regmatch_t matched_groups[max_groups + 1];
-
-    if (regexec(pattern, string, max_groups + 1, matched_groups, 0) != 0)
+    if (regexec(&pattern->pattern, string, pattern->groups + 1, matched_groups, 0) != 0)
         return false;
 
     match->is_match = true;
 
-    if (max_groups > 0)
+    if (pattern->groups > 0)
     {
-        match->capture_groups = calloc(max_groups + 1, sizeof(char*));
+        match->capture_groups = calloc(pattern->groups + 1, sizeof(char*));
 
         if (match->capture_groups == NULL)
         {
-            fprintf(stderr, "Error: MatchedPattern->capture_groups memory allocation failed.\n");
+            fprintf(stderr, "Error: Match->capture_groups memory allocation failed.\n");
             match->has_error = true;
             return false;
         }
 
-        for (size_t i = 0; i < max_groups; i++)
+        for (size_t i = 0; i < pattern->groups; i++)
         {
             size_t group_idx = i + 1;
 
@@ -131,37 +117,37 @@ static bool match_pattern(const char* string, const regex_t* pattern, const size
     return true;
 }
 
-static bool initialize_matched_pattern(MatchedPattern** pattern)
+static bool initialize_match(Match** match)
 {
-    if (pattern == NULL)
+    if (match == NULL)
         return false;
 
-    if (*pattern == NULL)
+    if (*match == NULL)
     {
-        *pattern = calloc(1, sizeof(MatchedPattern));
-        if (*pattern == NULL)
+        *match = calloc(1, sizeof(Match));
+        if (*match == NULL)
         {
-            fprintf(stderr, "Error: MatchedPattern memory allocation failed.\n");
+            fprintf(stderr, "Error: Match memory allocation failed.\n");
             return false;
         }
-        (*pattern)->has_error = false;
+        (*match)->has_error = false;
         return true;
     }
 
-    if ((*pattern)->has_error)
+    if ((*match)->has_error)
         return false;
 
-    (*pattern)->is_match = false;
+    (*match)->is_match = false;
 
-    if ((*pattern)->capture_groups != NULL)
+    if ((*match)->capture_groups != NULL)
     {
-        for (size_t i = 0; (*pattern)->capture_groups[i] != NULL; i++)
+        for (size_t i = 0; (*match)->capture_groups[i] != NULL; i++)
         {
-            free((*pattern)->capture_groups[i]);
-            (*pattern)->capture_groups[i] = NULL;
+            free((*match)->capture_groups[i]);
+            (*match)->capture_groups[i] = NULL;
         }
-        free((*pattern)->capture_groups);
-        (*pattern)->capture_groups = NULL;
+        free((*match)->capture_groups);
+        (*match)->capture_groups = NULL;
     }
 
     return true;
@@ -218,14 +204,14 @@ static bool get_register_key(const char* raw_key, int8_t* key)
     return true;
 }
 
-static bool get_register(const NodeProcessor processor, const char* raw_key, int32_t* value)
+static bool get_register(const NodeProcessor* processor, const char* raw_key, int32_t* value)
 {
     int8_t key;
 
     if (!get_register_key(raw_key, &key))
         return false;
 
-    *value = processor.registers[key];
+    *value = processor->registers[key];
     return true;
 }
 
@@ -242,85 +228,81 @@ static void set_register(NodeProcessor* processor, const char* raw_key, int32_t 
     debug("NodeProcessor->registers[%d] = %d\n", key, processor->registers[key]);
 }
 
-static void dump_processor_state(const NodeProcessor processor)
+static void dump_processor_state(const NodeProcessor* processor)
 {
     for (int i = 0; i < 32; i++)
     {
-        fprintf(stdout, "R%d=%d\n", i, processor.registers[i]);
+        fprintf(stdout, "R%d=%d\n", i, processor->registers[i]);
     }
 }
 
-static void dump_register_state(const NodeProcessor processor, const char* raw_key)
+static void dump_register_state(const NodeProcessor* processor, char** arguments)
 {
     int32_t value;
 
-    if (get_register(processor, raw_key, &value))
+    if (get_register(processor, arguments[0], &value))
     {
-        fprintf(stdout, "R%s=%d\n", raw_key, value);
+        fprintf(stdout, "R%s=%d\n", arguments[0], value);
     }
 }
 
-static void load_immediate(Node* node, const char* raw_key, const char* raw_value)
+static void load_immediate(Node* node, char** arguments)
 {
-    set_register(&node->processor, raw_key, (int32_t)strtol(raw_value, NULL, 10));
+    set_register(&node->processor, arguments[0], (int32_t)strtol(arguments[1], NULL, 10));
 }
 
-static void add(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
-                const char* raw_source_key_2)
+static void add(NodeProcessor* processor, char** arguments)
 {
-    int32_t source_value_1;
-    int32_t source_value_2;
+    int32_t value_1;
+    int32_t value_2;
 
-    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
-        *processor, raw_source_key_2, &source_value_2))
-    {
-        return;
-    }
-
-    set_register(processor, raw_destination_key, source_value_1 + source_value_2);
-}
-
-static void sub(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
-                const char* raw_source_key_2)
-{
-    int32_t source_value_1;
-    int32_t source_value_2;
-
-    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
-        *processor, raw_source_key_2, &source_value_2))
+    if (!get_register(processor, arguments[1], &value_1) || !get_register(
+        processor, arguments[2], &value_2))
     {
         return;
     }
 
-    set_register(processor, raw_destination_key, source_value_1 - source_value_2);
+    set_register(processor, arguments[0], value_1 + value_2);
 }
 
-static void add_immediate(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key,
-                          const char* raw_value)
+static void sub(NodeProcessor* processor, char** arguments)
 {
-    int32_t source_value;
+    int32_t value_1;
+    int32_t value_2;
 
-    if (!get_register(*processor, raw_source_key, &source_value))
+    if (!get_register(processor, arguments[1], &value_1) || !get_register(
+        processor, arguments[2], &value_2))
     {
         return;
     }
 
-    set_register(processor, raw_destination_key, source_value + (int32_t)strtol(raw_value, NULL, 10));
+    set_register(processor, arguments[0], value_1 - value_2);
 }
 
-static void add_unsigned(NodeProcessor* processor, const char* raw_destination_key, const char* raw_source_key_1,
-                         const char* raw_source_key_2)
+static void add_immediate(NodeProcessor* processor, char** arguments)
 {
-    int32_t source_value_1;
-    int32_t source_value_2;
+    int32_t value_1;
 
-    if (!get_register(*processor, raw_source_key_1, &source_value_1) || !get_register(
-        *processor, raw_source_key_2, &source_value_2))
+    if (!get_register(processor, arguments[1], &value_1))
     {
         return;
     }
 
-    set_register(processor, raw_destination_key, (int32_t)((uint32_t)source_value_1 + (uint32_t)source_value_2));
+    set_register(processor, arguments[0], value_1 + (int32_t)strtol(arguments[2], NULL, 10));
+}
+
+static void add_unsigned(NodeProcessor* processor, char** arguments)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, arguments[1], &value_1) || !get_register(
+        processor, arguments[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, arguments[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
 }
 
 static bool run_node(Hypervisor* hypervisor)
@@ -328,56 +310,52 @@ static bool run_node(Hypervisor* hypervisor)
     ssize_t chars_read;
     char* line = NULL;
     size_t len = 0;
-    MatchedPattern* match = NULL;
+    Match* match = NULL;
+    bool has_error = false;
 
     while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
     {
         line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
         debug("Running instruction \"%s\"\n", line);
 
-        if (!initialize_matched_pattern(&match))
+        if (!initialize_match(&match))
         {
-            return false;
+            has_error = true;
+            break;
         }
 
-        if (match_pattern(line, &hypervisor->patterns.instruction.dump_processor_state, 0, match))
+        if (match_pattern(line, &hypervisor->patterns.dump_processor_state, match))
         {
-            dump_processor_state(hypervisor->current_node->processor);
+            dump_processor_state(&hypervisor->current_node->processor);
         }
-        else if (match_pattern(line, &hypervisor->patterns.instruction.dump_register_state, 1, match))
+        else if (match_pattern(line, &hypervisor->patterns.dump_register_state, match))
         {
-            dump_register_state(hypervisor->current_node->processor, match->capture_groups[0]);
+            dump_register_state(&hypervisor->current_node->processor, match->capture_groups);
         }
-        else if (match_pattern(line, &hypervisor->patterns.instruction.load_immediate, 2, match))
+        else if (match_pattern(line, &hypervisor->patterns.load_immediate, match))
         {
-            load_immediate(hypervisor->current_node, match->capture_groups[0], match->capture_groups[1]);
+            load_immediate(hypervisor->current_node, match->capture_groups);
         }
-        else if (match_pattern(line, &hypervisor->patterns.instruction.add, 3, match))
+        else if (match_pattern(line, &hypervisor->patterns.add, match))
         {
-            add(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
-                match->capture_groups[2]);
+            add(&hypervisor->current_node->processor, match->capture_groups);
         }
-        else if (match_pattern(line, &hypervisor->patterns.instruction.sub, 3, match))
+        else if (match_pattern(line, &hypervisor->patterns.sub, match))
         {
-            sub(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
-                match->capture_groups[2]);
+            sub(&hypervisor->current_node->processor, match->capture_groups);
         }
-        else if (match_pattern(line, &hypervisor->patterns.instruction.add_immediate, 3, match))
+        else if (match_pattern(line, &hypervisor->patterns.add_immediate, match))
         {
-            add_immediate(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
-                          match->capture_groups[2]);
+            add_immediate(&hypervisor->current_node->processor, match->capture_groups);
         }
         // @TODO differentiate add and addu.
-        // @TODO move max_groups to config.
-        // @TODO pass in capture groups for cleaner code.
-        else if (match_pattern(line, &hypervisor->patterns.instruction.add_unsigned, 3, match))
+        else if (match_pattern(line, &hypervisor->patterns.add_unsigned, match))
         {
-            add_unsigned(&hypervisor->current_node->processor, match->capture_groups[0], match->capture_groups[1],
-                         match->capture_groups[2]);
+            add_unsigned(&hypervisor->current_node->processor, match->capture_groups);
         }
         else
         {
-            fprintf(stderr, "Unknown instruction \"%s\"\n", line);
+            fprintf(stderr, "Error: Unknown instruction \"%s\"\n", line);
         }
 
         hypervisor->current_node->processor.program_counter += 1;
@@ -386,12 +364,12 @@ static bool run_node(Hypervisor* hypervisor)
     if (chars_read == -1)
         hypervisor->current_node->socket.has_pending_instructions = false;
 
-    teardown_matched_pattern(match);
+    teardown_match(match);
 
     if (line != NULL)
         free(line);
 
-    return true;
+    return !has_error;
 }
 
 static void switch_node(Hypervisor* hypervisor)
@@ -528,17 +506,17 @@ static bool setup_node_config(char* assembly_file_name, NodeConfig* config, cons
     char* line = NULL;
     size_t len = 0;
     bool has_error = false;
-    MatchedPattern* match = NULL;
+    Match* match = NULL;
 
     while (getline(&line, &len, assembly_file) != -1)
     {
-        if (!initialize_matched_pattern(&match))
+        if (!initialize_match(&match))
         {
             has_error = true;
             break;
         }
 
-        if (match_pattern(line, &patterns->node.vm_binary, 1, match))
+        if (match_pattern(line, &patterns->vm_binary, match))
         {
             if (config->vm_binary != NULL)
                 free(config->vm_binary);
@@ -558,7 +536,7 @@ static bool setup_node_config(char* assembly_file_name, NodeConfig* config, cons
     }
 
     fclose(assembly_file);
-    teardown_matched_pattern(match);
+    teardown_match(match);
 
     if (line != NULL)
         free(line);
@@ -617,52 +595,60 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
     if (patterns == NULL)
         return;
 
-    if (patterns->_is_vm_binary_initialized)
+    if (patterns->vm_binary.is_initialized)
     {
-        regfree(&patterns->node.vm_binary);
-        patterns->_is_vm_binary_initialized = false;
+        regfree(&patterns->vm_binary.pattern);
+        patterns->vm_binary.groups = 0;
+        patterns->vm_binary.is_initialized = false;
     }
 
-    if (patterns->_is_dump_processor_state_initialized)
+    if (patterns->dump_processor_state.is_initialized)
     {
-        regfree(&patterns->instruction.dump_processor_state);
-        patterns->_is_dump_processor_state_initialized = false;
+        regfree(&patterns->dump_processor_state.pattern);
+        patterns->dump_processor_state.groups = 0;
+        patterns->dump_processor_state.is_initialized = false;
     }
 
-    if (patterns->_is_dump_register_state_initialized)
+    if (patterns->dump_register_state.is_initialized)
     {
-        regfree(&patterns->instruction.dump_register_state);
-        patterns->_is_dump_register_state_initialized = false;
+        regfree(&patterns->dump_register_state.pattern);
+        patterns->dump_register_state.groups = 0;
+        patterns->dump_register_state.is_initialized = false;
     }
 
-    if (patterns->_is_load_immediate_initialized)
+    if (patterns->load_immediate.is_initialized)
     {
-        regfree(&patterns->instruction.load_immediate);
-        patterns->_is_load_immediate_initialized = false;
+        regfree(&patterns->load_immediate.pattern);
+        patterns->load_immediate.groups = 0;
+        patterns->load_immediate.is_initialized = false;
     }
 
-    if (patterns->_is_add_initialized)
+    if (patterns->add.is_initialized)
     {
-        regfree(&patterns->instruction.add);
-        patterns->_is_add_initialized = false;
+        regfree(&patterns->add.pattern);
+        patterns->add.groups = 0;
+        patterns->add.is_initialized = false;
     }
 
-    if (patterns->_is_sub_initialized)
+    if (patterns->sub.is_initialized)
     {
-        regfree(&patterns->instruction.sub);
-        patterns->_is_sub_initialized = false;
+        regfree(&patterns->sub.pattern);
+        patterns->sub.groups = 0;
+        patterns->sub.is_initialized = false;
     }
 
-    if (patterns->_is_add_immediate_initialized)
+    if (patterns->add_immediate.is_initialized)
     {
-        regfree(&patterns->instruction.add_immediate);
-        patterns->_is_add_immediate_initialized = false;
+        regfree(&patterns->add_immediate.pattern);
+        patterns->add_immediate.groups = 0;
+        patterns->add_immediate.is_initialized = false;
     }
 
-    if (patterns->_is_add_unsigned_initialized)
+    if (patterns->add_unsigned.is_initialized)
     {
-        regfree(&patterns->instruction.add_unsigned);
-        patterns->_is_add_unsigned_initialized = false;
+        regfree(&patterns->add_unsigned.pattern);
+        patterns->add_unsigned.groups = 0;
+        patterns->add_unsigned.is_initialized = false;
     }
 }
 
@@ -680,75 +666,59 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
 
     memset(patterns, 0, sizeof(Patterns));
 
-    if (regcomp(&patterns->node.vm_binary,
+    if (regcomp(&patterns->vm_binary.pattern,
                 "^[[:space:]]*vm_binary[[:space:]]*=[[:space:]]*([^[:space:]]+)[[:space:]]*$", REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("vm_binary", patterns);
-        return false;
-    }
-    patterns->_is_vm_binary_initialized = true;
+        return fail_setup_hypervisor_pattern("vm_binary", patterns);
+    patterns->vm_binary.groups = 1;
+    patterns->vm_binary.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.dump_processor_state, "^[[:space:]]*DUMP_PROCESSOR_STATE[[:space:]]*$",
+    if (regcomp(&patterns->dump_processor_state.pattern, "^[[:space:]]*DUMP_PROCESSOR_STATE[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("dump_processor_state", patterns);
-        return false;
-    }
-    patterns->_is_dump_processor_state_initialized = true;
+        return fail_setup_hypervisor_pattern("dump_processor_state", patterns);
+    patterns->dump_processor_state.groups = 0;
+    patterns->dump_processor_state.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.dump_register_state,
+    if (regcomp(&patterns->dump_register_state.pattern,
                 "^[[:space:]]*DUMP_REGISTER_STATE[[:space:]]+\\$([0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("dump_register_state", patterns);
-        return false;
-    }
-    patterns->_is_dump_register_state_initialized = true;
+        return fail_setup_hypervisor_pattern("dump_register_state", patterns);
+    patterns->dump_register_state.groups = 1;
+    patterns->dump_register_state.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.load_immediate,
+    if (regcomp(&patterns->load_immediate.pattern,
                 "^[[:space:]]*li[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("load_immediate", patterns);
-        return false;
-    }
-    patterns->_is_load_immediate_initialized = true;
+        return fail_setup_hypervisor_pattern("load_immediate", patterns);
+    patterns->load_immediate.groups = 2;
+    patterns->load_immediate.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.add,
+    if (regcomp(&patterns->add.pattern,
                 "^[[:space:]]*add[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("add", patterns);
-        return false;
-    }
-    patterns->_is_add_initialized = true;
+        return fail_setup_hypervisor_pattern("add", patterns);
+    patterns->add.groups = 3;
+    patterns->add.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.sub,
+    if (regcomp(&patterns->sub.pattern,
                 "^[[:space:]]*sub[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("sub", patterns);
-        return false;
-    }
-    patterns->_is_sub_initialized = true;
+        return fail_setup_hypervisor_pattern("sub", patterns);
+    patterns->sub.groups = 3;
+    patterns->sub.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.add_immediate,
+    if (regcomp(&patterns->add_immediate.pattern,
                 "^[[:space:]]*addi[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("add_immediate", patterns);
-        return false;
-    }
-    patterns->_is_add_immediate_initialized = true;
+        return fail_setup_hypervisor_pattern("add_immediate", patterns);
+    patterns->add_immediate.groups = 3;
+    patterns->add_immediate.is_initialized = true;
 
-    if (regcomp(&patterns->instruction.add_unsigned,
+    if (regcomp(&patterns->add_unsigned.pattern,
                 "^[[:space:]]*addu[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
-    {
-        fail_setup_hypervisor_pattern("add_unsigned", patterns);
-        return false;
-    }
-    patterns->_is_add_unsigned_initialized = true;
+        return fail_setup_hypervisor_pattern("add_unsigned", patterns);
+    patterns->add_unsigned.groups = 3;
+    patterns->add_unsigned.is_initialized = true;
 
     return true;
 }
@@ -835,7 +805,7 @@ static bool validate_args(int argc, char* argv[])
 {
     if (argc == 1)
     {
-        fprintf(stderr, "No argument provided, exiting.\n");
+        fprintf(stderr, "Error: No argument provided, exiting.\n");
         return false;
     }
 

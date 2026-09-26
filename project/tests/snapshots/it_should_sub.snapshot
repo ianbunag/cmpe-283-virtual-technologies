@@ -1,11 +1,11 @@
 Error: Invalid register "$32"
 Error: Invalid register "$32"
 Error: Invalid register "$32"
-Unknown instruction "sub $-1,$1,$2"
-Unknown instruction "sub $1,$2"
-Unknown instruction "sub $1,$2,$3,$4"
-Unknown instruction "sub $1,2,$3"
-Unknown instruction "sub $one,$2,$3"
+Error: Unknown instruction "sub $-1,$1,$2"
+Error: Unknown instruction "sub $1,$2"
+Error: Unknown instruction "sub $1,$2,$3,$4"
+Error: Unknown instruction "sub $1,2,$3"
+Error: Unknown instruction "sub $one,$2,$3"
 R0=0
 R1=10
 R2=0
