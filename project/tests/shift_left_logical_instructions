@@ -1,0 +1,35 @@
+li $1,1
+sll $2,$1,4
+ sll $3 , $1 , 4 
+sll  $4,  $1,  4
+sll $1,$1,4
+sll $5,$1,0
+sll $6,$1,1
+li $7,1
+sll $8,$7,31
+li $9,-1
+sll $10,$9,1
+sll $11,$9,4
+li $12,0
+sll $13,$12,10
+li $14,42
+sll $15,$14,32
+li $hi,5
+li $low,10
+sll $16,$hi,2
+sll $17,$low,3
+sll $low,$hi,1
+DUMP_REGISTER_STATE $low
+sll $hi,$1,2
+DUMP_REGISTER_STATE $hi
+sll $32,$1,4
+sll $18,$32,4
+sll $-1,$1,4
+sll $18,$-1,4
+sll $1,4
+sll $1,$2,3,4
+sll $1,2,3
+sll $one,$2,3
+sll $1,$two,3
+sll $1,$2,three
+DUMP_PROCESSOR_STATE

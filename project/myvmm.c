@@ -56,6 +56,7 @@ typedef struct Patterns
     Pattern or;
     Pattern andi;
     Pattern ori;
+    Pattern sll;
 } Patterns;
 
 typedef struct Match
@@ -504,6 +505,19 @@ static void or_immediate(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], value_1 | value_2);
 }
 
+static void shift_left_logical(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1))
+    {
+        return;
+    }
+
+    const int32_t value_2 = (int32_t)strtol(match->capture_groups[2], NULL, 10);
+    set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 << (value_2 & 0x1F)));
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -555,6 +569,8 @@ static bool run_node(Hypervisor* hypervisor)
             and_immediate(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.ori, match))
             or_immediate(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.sll, match))
+            shift_left_logical(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -913,6 +929,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->ori.groups = 0;
         patterns->ori.is_initialized = false;
     }
+
+    if (patterns->sll.is_initialized)
+    {
+        regfree(&patterns->sll.pattern);
+        patterns->sll.groups = 0;
+        patterns->sll.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -1046,6 +1069,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("ori", patterns);
     patterns->ori.groups = 3;
     patterns->ori.is_initialized = true;
+
+    if (regcomp(&patterns->sll.pattern,
+                "^[[:space:]]*sll[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("sll", patterns);
+    patterns->sll.groups = 3;
+    patterns->sll.is_initialized = true;
 
     return true;
 }
