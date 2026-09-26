@@ -28,4 +28,9 @@ subu $1,$2
 subu $1,$2,$3,$4
 subu $1,2,$3
 subu $one,$2,$3
+li $hi,100
+li $low,30
+subu $22,$hi,$low
+subu $23,$hi,$1
+subu $24,$2,$low
 DUMP_PROCESSOR_STATE

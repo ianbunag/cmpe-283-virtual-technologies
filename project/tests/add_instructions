@@ -26,4 +26,9 @@ add $1,$2
 add $1,$2,$3,$4
 add $1,2,$3
 add $one,$2,$3
+li $hi,100
+li $low,200
+add $22,$hi,$low
+add $23,$hi,$1
+add $24,$2,$low
 DUMP_PROCESSOR_STATE

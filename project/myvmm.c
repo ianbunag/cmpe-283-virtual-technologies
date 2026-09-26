@@ -172,7 +172,11 @@ typedef struct NodeSocket
 
 typedef struct NodeProcessor
 {
-    int32_t registers[32];
+    /*
+     * registers[32] == $hi
+     * registers[33] == $low
+     */
+    int32_t registers[34];
     int32_t program_counter;
 } NodeProcessor;
 
@@ -194,6 +198,21 @@ typedef struct Hypervisor
 
 static bool get_register_key(const char* raw_key, int8_t* key)
 {
+    if (raw_key == NULL)
+        return false;
+
+    if (strcmp(raw_key, "hi") == 0)
+    {
+        *key = 32;
+        return true;
+    }
+
+    if (strcmp(raw_key, "low") == 0)
+    {
+        *key = 33;
+        return true;
+    }
+
     char* endptr = NULL;
     const long converted_key = strtol(raw_key, &endptr, 10);
 
@@ -239,6 +258,9 @@ static void dump_processor_state(const NodeProcessor* processor)
     {
         fprintf(stdout, "R%d=%d\n", i, processor->registers[i]);
     }
+
+    fprintf(stdout, "Rhi=%d\n", processor->registers[32]);
+    fprintf(stdout, "Rlow=%d\n", processor->registers[33]);
 }
 
 static void dump_register_state(const NodeProcessor* processor, const Match* match)
@@ -476,7 +498,7 @@ static void reset_node_processor(NodeProcessor* processor)
     if (processor == NULL)
         return;
 
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < 34; i++)
     {
         processor->registers[i] = 0;
     }
@@ -756,56 +778,56 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->dump_processor_state.is_initialized = true;
 
     if (regcomp(&patterns->dump_register_state.pattern,
-                "^[[:space:]]*DUMP_REGISTER_STATE[[:space:]]+\\$([0-9]+)[[:space:]]*$",
+                "^[[:space:]]*DUMP_REGISTER_STATE[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("dump_register_state", patterns);
     patterns->dump_register_state.groups = 1;
     patterns->dump_register_state.is_initialized = true;
 
     if (regcomp(&patterns->load_immediate.pattern,
-                "^[[:space:]]*li[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                "^[[:space:]]*li[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("load_immediate", patterns);
     patterns->load_immediate.groups = 2;
     patterns->load_immediate.is_initialized = true;
 
     if (regcomp(&patterns->add.pattern,
-                "^[[:space:]]*add[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                "^[[:space:]]*add[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add", patterns);
     patterns->add.groups = 3;
     patterns->add.is_initialized = true;
 
     if (regcomp(&patterns->sub.pattern,
-                "^[[:space:]]*sub[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                "^[[:space:]]*sub[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("sub", patterns);
     patterns->sub.groups = 3;
     patterns->sub.is_initialized = true;
 
     if (regcomp(&patterns->add_immediate.pattern,
-                "^[[:space:]]*addi[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                "^[[:space:]]*addi[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_immediate", patterns);
     patterns->add_immediate.groups = 3;
     patterns->add_immediate.is_initialized = true;
 
     if (regcomp(&patterns->add_unsigned.pattern,
-                "^[[:space:]]*addu[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                "^[[:space:]]*addu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_unsigned", patterns);
     patterns->add_unsigned.groups = 3;
     patterns->add_unsigned.is_initialized = true;
 
     if (regcomp(&patterns->sub_unsigned.pattern,
-                "^[[:space:]]*subu[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*$",
+                "^[[:space:]]*subu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("sub_unsigned", patterns);
     patterns->sub_unsigned.groups = 3;
     patterns->sub_unsigned.is_initialized = true;
 
     if (regcomp(&patterns->add_immediate_unsigned.pattern,
-                "^[[:space:]]*addiu[[:space:]]+\\$([0-9]+)[[:space:]]*,[[:space:]]*\\$([0-9]+)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                "^[[:space:]]*addiu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_immediate_unsigned", patterns);
     patterns->add_immediate_unsigned.groups = 3;

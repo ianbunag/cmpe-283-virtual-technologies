@@ -21,4 +21,8 @@ addiu $1,2,3
 addiu $one,$2,3
 addiu $1,$two,3
 addiu $1,$2,three
+li $hi,100
+li $low,200
+addiu $14,$hi,15
+addiu $15,$low,-50
 DUMP_PROCESSOR_STATE
