@@ -42,13 +42,13 @@ typedef struct Patterns
     Pattern vm_binary;
     Pattern dump_processor_state;
     Pattern dump_register_state;
-    Pattern load_immediate;
+    Pattern li;
     Pattern add;
     Pattern sub;
-    Pattern add_immediate;
-    Pattern add_unsigned;
-    Pattern sub_unsigned;
-    Pattern add_immediate_unsigned;
+    Pattern addi;
+    Pattern addu;
+    Pattern subu;
+    Pattern addiu;
     Pattern mul;
 } Patterns;
 
@@ -301,7 +301,7 @@ static void add(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], (int32_t)sum);
 }
 
-static void sub(NodeProcessor* processor, const Match* match)
+static void subtract(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
     int32_t value_2;
@@ -357,7 +357,7 @@ static void add_unsigned(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
 }
 
-static void sub_unsigned(NodeProcessor* processor, const Match* match)
+static void subtract_unsigned(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
     int32_t value_2;
@@ -384,7 +384,7 @@ static void add_immediate_unsigned(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 + (uint32_t)value_2));
 }
 
-static void mul(NodeProcessor* processor, const Match* match)
+static void multiply_without_overflow(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
     int32_t value_2;
@@ -418,50 +418,27 @@ static bool run_node(Hypervisor* hypervisor)
         }
 
         if (match_pattern(line, &hypervisor->patterns.dump_processor_state, match))
-        {
             dump_processor_state(&hypervisor->current_node->processor);
-        }
         else if (match_pattern(line, &hypervisor->patterns.dump_register_state, match))
-        {
             dump_register_state(&hypervisor->current_node->processor, match);
-        }
-        else if (match_pattern(line, &hypervisor->patterns.load_immediate, match))
-        {
+        else if (match_pattern(line, &hypervisor->patterns.li, match))
             load_immediate(hypervisor->current_node, match);
-        }
         else if (match_pattern(line, &hypervisor->patterns.add, match))
-        {
             add(&hypervisor->current_node->processor, match);
-        }
         else if (match_pattern(line, &hypervisor->patterns.sub, match))
-        {
-            sub(&hypervisor->current_node->processor, match);
-        }
-        else if (match_pattern(line, &hypervisor->patterns.add_immediate, match))
-        {
+            subtract(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.addi, match))
             add_immediate(&hypervisor->current_node->processor, match);
-        }
-        else if (match_pattern(line, &hypervisor->patterns.add_unsigned, match))
-        {
+        else if (match_pattern(line, &hypervisor->patterns.addu, match))
             add_unsigned(&hypervisor->current_node->processor, match);
-        }
-        else if (match_pattern(line, &hypervisor->patterns.sub_unsigned, match))
-        {
-            sub_unsigned(&hypervisor->current_node->processor, match);
-        }
-        else if (match_pattern(line, &hypervisor->patterns.add_immediate_unsigned, match))
-        {
+        else if (match_pattern(line, &hypervisor->patterns.subu, match))
+            subtract_unsigned(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.addiu, match))
             add_immediate_unsigned(&hypervisor->current_node->processor, match);
-        }
         else if (match_pattern(line, &hypervisor->patterns.mul, match))
-        {
-            // @TODO NAMING
-            mul(&hypervisor->current_node->processor, match);
-        }
+            multiply_without_overflow(&hypervisor->current_node->processor, match);
         else
-        {
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
-        }
 
         hypervisor->current_node->processor.program_counter += 1;
     }
@@ -721,11 +698,11 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->dump_register_state.is_initialized = false;
     }
 
-    if (patterns->load_immediate.is_initialized)
+    if (patterns->li.is_initialized)
     {
-        regfree(&patterns->load_immediate.pattern);
-        patterns->load_immediate.groups = 0;
-        patterns->load_immediate.is_initialized = false;
+        regfree(&patterns->li.pattern);
+        patterns->li.groups = 0;
+        patterns->li.is_initialized = false;
     }
 
     if (patterns->add.is_initialized)
@@ -742,32 +719,32 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->sub.is_initialized = false;
     }
 
-    if (patterns->add_immediate.is_initialized)
+    if (patterns->addi.is_initialized)
     {
-        regfree(&patterns->add_immediate.pattern);
-        patterns->add_immediate.groups = 0;
-        patterns->add_immediate.is_initialized = false;
+        regfree(&patterns->addi.pattern);
+        patterns->addi.groups = 0;
+        patterns->addi.is_initialized = false;
     }
 
-    if (patterns->add_unsigned.is_initialized)
+    if (patterns->addu.is_initialized)
     {
-        regfree(&patterns->add_unsigned.pattern);
-        patterns->add_unsigned.groups = 0;
-        patterns->add_unsigned.is_initialized = false;
+        regfree(&patterns->addu.pattern);
+        patterns->addu.groups = 0;
+        patterns->addu.is_initialized = false;
     }
 
-    if (patterns->sub_unsigned.is_initialized)
+    if (patterns->subu.is_initialized)
     {
-        regfree(&patterns->sub_unsigned.pattern);
-        patterns->sub_unsigned.groups = 0;
-        patterns->sub_unsigned.is_initialized = false;
+        regfree(&patterns->subu.pattern);
+        patterns->subu.groups = 0;
+        patterns->subu.is_initialized = false;
     }
 
-    if (patterns->add_immediate_unsigned.is_initialized)
+    if (patterns->addiu.is_initialized)
     {
-        regfree(&patterns->add_immediate_unsigned.pattern);
-        patterns->add_immediate_unsigned.groups = 0;
-        patterns->add_immediate_unsigned.is_initialized = false;
+        regfree(&patterns->addiu.pattern);
+        patterns->addiu.groups = 0;
+        patterns->addiu.is_initialized = false;
     }
 
     if (patterns->mul.is_initialized)
@@ -811,12 +788,12 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->dump_register_state.groups = 1;
     patterns->dump_register_state.is_initialized = true;
 
-    if (regcomp(&patterns->load_immediate.pattern,
+    if (regcomp(&patterns->li.pattern,
                 "^[[:space:]]*li[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("load_immediate", patterns);
-    patterns->load_immediate.groups = 2;
-    patterns->load_immediate.is_initialized = true;
+    patterns->li.groups = 2;
+    patterns->li.is_initialized = true;
 
     if (regcomp(&patterns->add.pattern,
                 "^[[:space:]]*add[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
@@ -832,33 +809,33 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->sub.groups = 3;
     patterns->sub.is_initialized = true;
 
-    if (regcomp(&patterns->add_immediate.pattern,
+    if (regcomp(&patterns->addi.pattern,
                 "^[[:space:]]*addi[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_immediate", patterns);
-    patterns->add_immediate.groups = 3;
-    patterns->add_immediate.is_initialized = true;
+    patterns->addi.groups = 3;
+    patterns->addi.is_initialized = true;
 
-    if (regcomp(&patterns->add_unsigned.pattern,
+    if (regcomp(&patterns->addu.pattern,
                 "^[[:space:]]*addu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_unsigned", patterns);
-    patterns->add_unsigned.groups = 3;
-    patterns->add_unsigned.is_initialized = true;
+    patterns->addu.groups = 3;
+    patterns->addu.is_initialized = true;
 
-    if (regcomp(&patterns->sub_unsigned.pattern,
+    if (regcomp(&patterns->subu.pattern,
                 "^[[:space:]]*subu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("sub_unsigned", patterns);
-    patterns->sub_unsigned.groups = 3;
-    patterns->sub_unsigned.is_initialized = true;
+    patterns->subu.groups = 3;
+    patterns->subu.is_initialized = true;
 
-    if (regcomp(&patterns->add_immediate_unsigned.pattern,
+    if (regcomp(&patterns->addiu.pattern,
                 "^[[:space:]]*addiu[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
                 REG_EXTENDED) != 0)
         return fail_setup_hypervisor_pattern("add_immediate_unsigned", patterns);
-    patterns->add_immediate_unsigned.groups = 3;
-    patterns->add_immediate_unsigned.is_initialized = true;
+    patterns->addiu.groups = 3;
+    patterns->addiu.is_initialized = true;
 
     if (regcomp(&patterns->mul.pattern,
                 "^[[:space:]]*mul[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
