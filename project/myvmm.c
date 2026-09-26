@@ -55,6 +55,7 @@ typedef struct Patterns
     Pattern and;
     Pattern or;
     Pattern andi;
+    Pattern ori;
 } Patterns;
 
 typedef struct Match
@@ -490,6 +491,19 @@ static void and_immediate(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], value_1 & value_2);
 }
 
+static void or_immediate(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1))
+    {
+        return;
+    }
+
+    const int32_t value_2 = (int32_t)strtol(match->capture_groups[2], NULL, 10);
+    set_register(processor, match->capture_groups[0], value_1 | value_2);
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -539,6 +553,8 @@ static bool run_node(Hypervisor* hypervisor)
             or(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.andi, match))
             and_immediate(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.ori, match))
+            or_immediate(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -890,6 +906,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->andi.groups = 0;
         patterns->andi.is_initialized = false;
     }
+
+    if (patterns->ori.is_initialized)
+    {
+        regfree(&patterns->ori.pattern);
+        patterns->ori.groups = 0;
+        patterns->ori.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -1015,6 +1038,14 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("andi", patterns);
     patterns->andi.groups = 3;
     patterns->andi.is_initialized = true;
+
+    // Both "or" and "ori" are supported because the name is "or" in the MIPS Instruction Set document.
+    if (regcomp(&patterns->ori.pattern,
+                "^[[:space:]]*ori?[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("ori", patterns);
+    patterns->ori.groups = 3;
+    patterns->ori.is_initialized = true;
 
     return true;
 }

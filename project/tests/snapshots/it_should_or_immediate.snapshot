@@ -1,0 +1,47 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "ori $-1,$1,7"
+Exception: Unknown instruction "ori $22,$-1,7"
+Exception: Unknown instruction "ori $1,7"
+Exception: Unknown instruction "ori $1,$2,3,4"
+Exception: Unknown instruction "ori $1,2,3"
+Exception: Unknown instruction "ori $one,$2,3"
+Exception: Unknown instruction "ori $1,$two,3"
+Exception: Unknown instruction "ori $1,$2,three"
+Exception: Unknown instruction "or $1,$2,three"
+Rlow=255
+Rhi=15
+R0=0
+R1=15
+R2=15
+R3=15
+R4=15
+R5=15
+R6=-1
+R7=-1
+R8=42
+R9=42
+R10=240
+R11=255
+R12=-10
+R13=-9
+R14=255
+R15=15
+R16=255
+R17=15
+R18=15
+R19=15
+R20=255
+R21=-9
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=15
+Rlow=255

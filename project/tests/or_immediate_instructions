@@ -1,0 +1,40 @@
+li $1,15
+ori $2,$1,7
+ ori $3 , $1 , 7 
+ori  $4,  $1,  7
+or $5,$1,7
+ori $1,$1,7
+li $6,-1
+ori $7,$6,42
+li $8,42
+ori $9,$8,0
+li $10,240
+ori $11,$10,15
+li $12,-10
+ori $13,$12,-25
+li $hi,255
+li $low,15
+ori $14,$hi,15
+ori $15,$low,7
+ori $16,$hi,0
+ori $low,$hi,15
+DUMP_REGISTER_STATE $low
+ori $hi,$1,7
+DUMP_REGISTER_STATE $hi
+or $17,$1,7
+ or $18 , $1 , 7 
+or  $19,  $1,  7
+or $20,$10,15
+or $21,$12,-25
+ori $32,$1,7
+ori $22,$32,7
+ori $-1,$1,7
+ori $22,$-1,7
+ori $1,7
+ori $1,$2,3,4
+ori $1,2,3
+ori $one,$2,3
+ori $1,$two,3
+ori $1,$2,three
+or $1,$2,three
+DUMP_PROCESSOR_STATE
