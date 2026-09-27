@@ -58,6 +58,7 @@ typedef struct Patterns
     Pattern ori;
     Pattern sll;
     Pattern srl;
+    Pattern xor;
 } Patterns;
 
 typedef struct Match
@@ -480,6 +481,20 @@ static void or(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], value_1 | value_2);
 }
 
+static void xor(NodeProcessor* processor, const Match* match)
+{
+    int32_t value_1;
+    int32_t value_2;
+
+    if (!get_register(processor, match->capture_groups[1], &value_1) || !get_register(
+        processor, match->capture_groups[2], &value_2))
+    {
+        return;
+    }
+
+    set_register(processor, match->capture_groups[0], value_1 ^ value_2);
+}
+
 static void and_immediate(NodeProcessor* processor, const Match* match)
 {
     int32_t value_1;
@@ -587,6 +602,8 @@ static bool run_node(Hypervisor* hypervisor)
             shift_left_logical(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.srl, match))
             shift_right_logical(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.xor, match))
+            xor(&hypervisor->current_node->processor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -959,6 +976,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->srl.groups = 0;
         patterns->srl.is_initialized = false;
     }
+
+    if (patterns->xor.is_initialized)
+    {
+        regfree(&patterns->xor.pattern);
+        patterns->xor.groups = 0;
+        patterns->xor.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -1106,6 +1130,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
         return fail_setup_hypervisor_pattern("srl", patterns);
     patterns->srl.groups = 3;
     patterns->srl.is_initialized = true;
+
+    if (regcomp(&patterns->xor.pattern,
+                "^[[:space:]]*xor[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("xor", patterns);
+    patterns->xor.groups = 3;
+    patterns->xor.is_initialized = true;
 
     return true;
 }

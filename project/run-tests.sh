@@ -42,6 +42,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_or_immediate" ./myvmm -v tests/or_immediate_assembly_file
 ./run-test.sh "$@" "it_should_shift_left_logical" ./myvmm -v tests/shift_left_logical_assembly_file
 ./run-test.sh "$@" "it_should_shift_right_logical" ./myvmm -v tests/shift_right_logical_assembly_file
+./run-test.sh "$@" "it_should_xor" ./myvmm -v tests/xor_assembly_file
 
 # It should handle instruction errors
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file

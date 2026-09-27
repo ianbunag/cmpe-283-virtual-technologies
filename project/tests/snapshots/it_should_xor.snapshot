@@ -1,0 +1,44 @@
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Invalid register "$32"
+Exception: Unknown instruction "xor $-1,$1,$2"
+Exception: Unknown instruction "xor $1,$2"
+Exception: Unknown instruction "xor $1,$2,$3,$4"
+Exception: Unknown instruction "xor $1,2,$3"
+Exception: Unknown instruction "xor $one,$2,$3"
+Rlow=247
+Rhi=15
+R0=0
+R1=8
+R2=7
+R3=8
+R4=8
+R5=8
+R6=-1
+R7=42
+R8=-43
+R9=0
+R10=42
+R11=240
+R12=15
+R13=255
+R14=-10
+R15=-25
+R16=17
+R17=240
+R18=213
+R19=8
+R20=0
+R21=0
+R22=0
+R23=0
+R24=0
+R25=0
+R26=0
+R27=0
+R28=0
+R29=0
+R30=0
+R31=0
+Rhi=15
+Rlow=247
