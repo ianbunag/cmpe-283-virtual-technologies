@@ -4,10 +4,10 @@ set -euo pipefail
 
 ./build.sh
 
-# It should run example files @TODO reenable
-#./run-test.sh "it_should_run_assembly_file_vm1" ./myvmm -v assembly_file_vm1
-#./run-test.sh "it_should_run_assembly_file_vm2" ./myvmm -v assembly_file_vm2
-#./run-test.sh "it_should_run_assembly_file_vm1_and_vm2" ./myvmm -v assembly_file_vm1 -v assembly_file_vm2
+# It should run example files
+./run-test.sh "$@" "it_should_run_assembly_file_vm1" ./myvmm -v assembly_file_vm1
+./run-test.sh "$@" "it_should_run_assembly_file_vm2" ./myvmm -v assembly_file_vm2
+./run-test.sh "$@" "it_should_run_assembly_file_vm1_and_vm2" ./myvmm -v assembly_file_vm1 -v assembly_file_vm2
 
 # It should be configurable
 ./run-test.sh "$@" "it_should_print_debug_statements" ./myvmm -d -v tests/debug_assembly_file
