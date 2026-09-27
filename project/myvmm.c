@@ -632,8 +632,11 @@ static void switch_node(Hypervisor* hypervisor)
 
 static bool run_hypervisor(Hypervisor* hypervisor)
 {
-    if (hypervisor == NULL || hypervisor->head_node == NULL)
+    if (hypervisor == NULL)
         return false;
+
+    if (hypervisor->head_node == NULL)
+        return true;
 
     switch_node(hypervisor);
 

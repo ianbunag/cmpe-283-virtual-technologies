@@ -24,6 +24,7 @@ set -euo pipefail
 # It should support configuration quirks
 ./run-test.sh "$@" "it_should_parse_spaced_vm_file" ./myvmm -v tests/spaced_assembly_file
 ./run-test.sh "$@" "it_should_follow_last_of_duplicate_config" ./myvmm -v tests/duplicate_config_assembly_file
+./run-test.sh "$@" "it_should_skip_when_no_vm_configured" ./myvmm -d
 
 # It should support instructions
 ./run-test.sh "$@" "it_should_load_immediate" ./myvmm -v tests/load_immediate_assembly_file
@@ -45,5 +46,4 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_xor" ./myvmm -v tests/xor_assembly_file
 
 # It should handle instruction errors
-./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
