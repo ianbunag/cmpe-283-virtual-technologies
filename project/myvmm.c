@@ -258,6 +258,11 @@ static void set_register(NodeProcessor* processor, const char* raw_key, int32_t 
         return;
     }
 
+    if (key == 0)
+    {
+        return;
+    }
+
     processor->registers[key] = value;
     debug("NodeProcessor->registers[%d] = %d\n", key, processor->registers[key]);
 }
