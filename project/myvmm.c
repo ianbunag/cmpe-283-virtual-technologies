@@ -9,6 +9,7 @@
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
+#define HASH_STR_LEN 9
 #define COLOR_YELLOW "\033[0;33m"
 #define COLOR_RESET "\033[0m"
 
@@ -59,6 +60,9 @@ typedef struct Patterns
     Pattern sll;
     Pattern srl;
     Pattern xor;
+    Pattern snapshot;
+    Pattern validate_instructions;
+    Pattern skip_instructions;
 } Patterns;
 
 typedef struct Match
@@ -172,6 +176,7 @@ typedef struct NodeConfig
 {
     char* assembly_file_name;
     char* vm_binary;
+    char* snapshot_file;
 } NodeConfig;
 
 typedef struct NodeSocket
@@ -187,7 +192,7 @@ typedef struct NodeProcessor
      * registers[33] == $low
      */
     int32_t registers[34];
-    int32_t program_counter;
+    int32_t executed_instructions;
 } NodeProcessor;
 
 typedef struct Node
@@ -552,6 +557,106 @@ static void shift_right_logical(NodeProcessor* processor, const Match* match)
     set_register(processor, match->capture_groups[0], (int32_t)((uint32_t)value_1 >> (value_2 & 0x1F)));
 }
 
+// Checks whether a line is empty after stripping line breaks to allow skipping blank lines.
+static bool is_blank_line(const char* line)
+{
+    return line == NULL || line[0] == '\0';
+}
+
+// See https://gist.github.com/sgsfak/9ba382a0049f6ee885f68621ae86079b#file-hashes-c-L37-L58.
+static bool hash_file(const char* file_path, char* output_hash)
+{
+    if (file_path == NULL || output_hash == NULL)
+        return false;
+
+    /* Flawfinder: ignore - file name validated/supplied internally */
+    FILE* file = fopen(file_path, "rb");
+
+    if (file == NULL)
+        return false;
+
+    const uint32_t fnv_32_prime = 0x01000193;
+    uint32_t hash = 0x811c9dc5;
+    uint8_t buffer[4096];
+    size_t bytes_read;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+    {
+        for (size_t i = 0; i < bytes_read; i++)
+        {
+            hash ^= (uint32_t)buffer[i];
+            hash *= fnv_32_prime;
+        }
+    }
+
+    fclose(file);
+    snprintf(output_hash, HASH_STR_LEN, "%08x", hash);
+    return true;
+}
+
+static void take_snapshot(const Node* node, const char* snapshot_path)
+{
+    if (node == NULL || snapshot_path == NULL)
+        return;
+
+    /* Flawfinder: ignore - snapshot path supplied by instruction */
+    FILE* file = fopen(snapshot_path, "w");
+    if (file == NULL)
+    {
+        fprintf(stderr, "Exception: Failed to create snapshot \"%s\"\n", snapshot_path);
+        return;
+    }
+
+    char hash[HASH_STR_LEN] = {0};
+    if (!hash_file(node->config.vm_binary, hash))
+    {
+        fclose(file);
+        fprintf(stderr, "Exception: Failed to create snapshot \"%s\"\n", snapshot_path);
+        return;
+    }
+
+    fprintf(file, "VALIDATE_INSTRUCTIONS=%s\n", hash);
+    fprintf(file, "SKIP_INSTRUCTIONS=%d\n", node->processor.executed_instructions + 1);
+
+    for (int i = 0; i < 32; i++)
+    {
+        fprintf(file, "li $%d,%d\n", i, node->processor.registers[i]);
+    }
+    fprintf(file, "li $hi,%d\n", node->processor.registers[32]);
+    fprintf(file, "li $low,%d\n", node->processor.registers[33]);
+
+    fclose(file);
+}
+
+static void skip_instructions(Node* node, const Match* match)
+{
+    const long skip_count = strtol(match->capture_groups[0], NULL, 10);
+    char* skip_line = NULL;
+    size_t skip_len = 0;
+    long skipped = 0;
+
+    while (skipped < skip_count)
+    {
+        if (getline(&skip_line, &skip_len, node->socket.file) == -1)
+        {
+            node->socket.has_pending_instructions = false;
+            break;
+        }
+
+        skip_line[strcspn(skip_line, "\r\n")] = '\0';
+
+        if (is_blank_line(skip_line))
+            continue;
+
+        skipped++;
+    }
+
+    if (skip_line != NULL)
+        free(skip_line);
+
+    node->processor.executed_instructions = (int32_t)skip_count;
+}
+
 static bool run_node(Hypervisor* hypervisor)
 {
     ssize_t chars_read;
@@ -563,6 +668,10 @@ static bool run_node(Hypervisor* hypervisor)
     while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
     {
         line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
+
+        if (is_blank_line(line))
+            continue;
+
         debug("Running instruction \"%s\"\n", line);
 
         if (!initialize_match(&match))
@@ -609,10 +718,12 @@ static bool run_node(Hypervisor* hypervisor)
             shift_right_logical(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.xor, match))
             xor(&hypervisor->current_node->processor, match);
+        else if (match_pattern(line, &hypervisor->patterns.snapshot, match))
+            take_snapshot(hypervisor->current_node, match->capture_groups[0]);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
-        hypervisor->current_node->processor.program_counter += 1;
+        hypervisor->current_node->processor.executed_instructions += 1;
     }
 
     if (chars_read == -1)
@@ -626,13 +737,18 @@ static bool run_node(Hypervisor* hypervisor)
     return !has_error;
 }
 
+static void debug_node(Hypervisor* hypervisor)
+{
+    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
+}
+
 static void switch_node(Hypervisor* hypervisor)
 {
     hypervisor->current_node = (hypervisor->current_node->next != NULL)
                                    ? hypervisor->current_node->next
                                    : hypervisor->head_node;
 
-    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
+    debug_node(hypervisor);
 }
 
 static bool run_hypervisor(Hypervisor* hypervisor)
@@ -643,7 +759,7 @@ static bool run_hypervisor(Hypervisor* hypervisor)
     if (hypervisor->head_node == NULL)
         return true;
 
-    switch_node(hypervisor);
+    debug_node(hypervisor);
 
     while (hypervisor->active_nodes > 0)
     {
@@ -675,7 +791,7 @@ static void reset_node_processor(NodeProcessor* processor)
         processor->registers[i] = 0;
     }
 
-    processor->program_counter = 0;
+    processor->executed_instructions = 0;
 }
 
 static void teardown_node_socket(NodeSocket* socket)
@@ -733,6 +849,13 @@ static void teardown_node_config(NodeConfig* config)
         memset(config->vm_binary, 0, strnlen(config->vm_binary, MAX_LINE_LEN));
         free(config->vm_binary);
         config->vm_binary = NULL;
+    }
+
+    if (config->snapshot_file != NULL)
+    {
+        memset(config->snapshot_file, 0, strnlen(config->snapshot_file, MAX_LINE_LEN));
+        free(config->snapshot_file);
+        config->snapshot_file = NULL;
     }
 
     memset(config, 0, sizeof(NodeConfig));
@@ -818,6 +941,141 @@ static void teardown_node(Node* node)
 
     memset(node, 0, sizeof(Node));
     free(node);
+}
+
+static void drop_node(Hypervisor* hypervisor, Node* target_node)
+{
+    if (hypervisor == NULL || target_node == NULL)
+        return;
+
+    Node* prev = NULL;
+    Node* current = hypervisor->head_node;
+
+    while (current != NULL && current != target_node)
+    {
+        prev = current;
+        current = current->next;
+    }
+
+    if (current == target_node)
+    {
+        if (prev == NULL)
+            hypervisor->head_node = target_node->next;
+        else
+            prev->next = target_node->next;
+
+        hypervisor->active_nodes -= 1;
+        teardown_node(target_node);
+    }
+}
+
+static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patterns* patterns)
+{
+    if (snapshot_file == NULL || node == NULL || patterns == NULL)
+        return false;
+
+    char expected_hash[HASH_STR_LEN] = {0};
+
+    if (!hash_file(node->config.vm_binary, expected_hash))
+    {
+        fprintf(stderr, "Error: Failed to hash instruction file \"%s\".\n", node->config.vm_binary);
+        return false;
+    }
+
+    char* line = NULL;
+    size_t len = 0;
+    Match* match = NULL;
+    bool is_validated = false;
+
+    while (getline(&line, &len, snapshot_file) != -1)
+    {
+        line[strcspn(line, "\r\n")] = '\0';
+
+        if (is_blank_line(line))
+            continue;
+
+        if (!initialize_match(&match))
+            break;
+
+        is_validated = match_pattern(line, &patterns->validate_instructions, match) &&
+            strcmp(match->capture_groups[0], expected_hash) == 0;
+
+        break;
+    }
+
+    teardown_match(match);
+
+    if (line != NULL)
+        free(line);
+
+    if (!is_validated)
+        fprintf(stderr,
+                "Error: Snapshot validation failed for \"%s\". Instructions from where snapshot was generated does not "
+                "match current instructions.\n",
+                node->config.snapshot_file);
+
+    return is_validated;
+}
+
+static bool restore_node(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->current_node == NULL || hypervisor->current_node->config.snapshot_file ==
+        NULL)
+        return false;
+
+    Node* node = hypervisor->current_node;
+    /* Flawfinder: ignore - snapshot file supplied by user */
+    FILE* snapshot_file = fopen(node->config.snapshot_file, "r");
+
+    if (snapshot_file == NULL)
+    {
+        fprintf(stderr, "Error: Snapshot file \"%s\" cannot be opened.\n", node->config.snapshot_file);
+        return false;
+    }
+
+    if (!validate_snapshot(snapshot_file, node, &hypervisor->patterns))
+    {
+        fclose(snapshot_file);
+        return false;
+    }
+
+    char* line = NULL;
+    size_t len = 0;
+    Match* match = NULL;
+    bool has_error = false;
+
+    while (getline(&line, &len, snapshot_file) != -1)
+    {
+        line[strcspn(line, "\r\n")] = '\0';
+
+        if (is_blank_line(line))
+            continue;
+
+        if (!initialize_match(&match))
+        {
+            has_error = true;
+            break;
+        }
+
+        if (match_pattern(line, &hypervisor->patterns.skip_instructions, match))
+            skip_instructions(node, match);
+        else if (match_pattern(line, &hypervisor->patterns.li, match))
+            load_immediate(node, match);
+        else
+        {
+            fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
+            has_error = true;
+            break;
+        }
+    }
+
+    teardown_match(match);
+    fclose(snapshot_file);
+
+    if (line != NULL)
+        free(line);
+
+    return !has_error;
 }
 
 static Node* setup_node(char* assembly_file_name, const Patterns* patterns)
@@ -991,6 +1249,27 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         patterns->xor.groups = 0;
         patterns->xor.is_initialized = false;
     }
+
+    if (patterns->snapshot.is_initialized)
+    {
+        regfree(&patterns->snapshot.pattern);
+        patterns->snapshot.groups = 0;
+        patterns->snapshot.is_initialized = false;
+    }
+
+    if (patterns->validate_instructions.is_initialized)
+    {
+        regfree(&patterns->validate_instructions.pattern);
+        patterns->validate_instructions.groups = 0;
+        patterns->validate_instructions.is_initialized = false;
+    }
+
+    if (patterns->skip_instructions.is_initialized)
+    {
+        regfree(&patterns->skip_instructions.pattern);
+        patterns->skip_instructions.groups = 0;
+        patterns->skip_instructions.is_initialized = false;
+    }
 }
 
 static bool fail_setup_hypervisor_pattern(const char* failed_pattern, Patterns* patterns)
@@ -1148,6 +1427,27 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->xor.groups = 3;
     patterns->xor.is_initialized = true;
 
+    if (regcomp(&patterns->snapshot.pattern,
+                "^[[:space:]]*SNAPSHOT[[:space:]]+([^[:space:]]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("snapshot", patterns);
+    patterns->snapshot.groups = 1;
+    patterns->snapshot.is_initialized = true;
+
+    if (regcomp(&patterns->validate_instructions.pattern,
+                "^[[:space:]]*VALIDATE_INSTRUCTIONS[[:space:]]*=[[:space:]]*([a-fA-F0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("validate_instructions", patterns);
+    patterns->validate_instructions.groups = 1;
+    patterns->validate_instructions.is_initialized = true;
+
+    if (regcomp(&patterns->skip_instructions.pattern,
+                "^[[:space:]]*SKIP_INSTRUCTIONS[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("skip_instructions", patterns);
+    patterns->skip_instructions.groups = 1;
+    patterns->skip_instructions.is_initialized = true;
+
     return true;
 }
 
@@ -1193,13 +1493,35 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
     int opt;
 
     /* Flawfinder: ignore - args are validated */
-    while ((opt = getopt(argc, argv, "v:d")) != -1)
+    while ((opt = getopt(argc, argv, "v:s:d")) != -1)
     {
         switch (opt)
         {
         case 'd':
             debug_enabled = true;
             debug("Debug enabled.\n");
+            break;
+        case 's':
+            if (hypervisor->current_node == NULL)
+            {
+                fprintf(stderr, "Error: -s flag specified without preceding -v node.\n");
+                teardown_hypervisor(hypervisor);
+                return NULL;
+            }
+
+            if (hypervisor->current_node->config.snapshot_file != NULL)
+            {
+                free(hypervisor->current_node->config.snapshot_file);
+            }
+
+            hypervisor->current_node->config.snapshot_file = strndup(optarg, MAX_LINE_LEN);
+
+            if (hypervisor->current_node->config.snapshot_file == NULL)
+            {
+                fprintf(stderr, "Error: NodeConfig.snapshot_file memory allocation failed.\n");
+                teardown_hypervisor(hypervisor);
+                return NULL;
+            }
             break;
         case 'v':
             {
@@ -1225,6 +1547,25 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
             break;
         }
     }
+
+    Node* current = hypervisor->head_node;
+
+    while (current != NULL)
+    {
+        Node* next = current->next;
+
+        if (current->config.snapshot_file != NULL)
+        {
+            hypervisor->current_node = current;
+
+            if (!restore_node(hypervisor))
+                drop_node(hypervisor, current);
+        }
+
+        current = next;
+    }
+
+    hypervisor->current_node = hypervisor->head_node;
 
     return hypervisor;
 }
