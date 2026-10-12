@@ -5,7 +5,7 @@
 [0m[0;33mDebug: NodeConfig->snapshot_file = "tests/single_snapshot_snapshot"
 [0m[0;33mDebug: Restoring node from "tests/single_snapshot_snapshot"
 [0m[0;33mDebug: Validating snapshot "tests/single_snapshot_snapshot"
-[0m[0;33mDebug: Skipping 33 instructions
+[0m[0;33mDebug: Skipping 35 instructions
 [0m[0;33mDebug: NodeProcessor->registers[1] = 1
 [0m[0;33mDebug: NodeProcessor->registers[2] = 2
 [0m[0;33mDebug: NodeProcessor->registers[3] = 3
@@ -37,8 +37,8 @@
 [0m[0;33mDebug: NodeProcessor->registers[29] = 29
 [0m[0;33mDebug: NodeProcessor->registers[30] = 30
 [0m[0;33mDebug: NodeProcessor->registers[31] = 31
-[0m[0;33mDebug: NodeProcessor->registers[32] = 0
-[0m[0;33mDebug: NodeProcessor->registers[33] = 0
+[0m[0;33mDebug: NodeProcessor->registers[32] = 32
+[0m[0;33mDebug: NodeProcessor->registers[33] = 33
 [0m[0;33mDebug: Hypervisor->current_node = "tests/single_snapshot_instructions"
 [0m[0;33mDebug: Running instruction "DUMP_PROCESSOR_STATE"
 [0m[0;33mDebug: Hypervisor->current_node = "tests/single_snapshot_instructions"
@@ -74,5 +74,5 @@ R28=28
 R29=29
 R30=30
 R31=31
-Rhi=0
-Rlow=0
+Rhi=32
+Rlow=33

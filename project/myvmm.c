@@ -624,10 +624,15 @@ static void take_snapshot(const Node* node, const char* snapshot_path)
 
     for (int i = 0; i < 32; i++)
     {
-        fprintf(file, "li $%d,%d\n", i, node->processor.registers[i]);
+        if (node->processor.registers[i] != 0)
+            fprintf(file, "li $%d,%d\n", i, node->processor.registers[i]);
     }
-    fprintf(file, "li $hi,%d\n", node->processor.registers[32]);
-    fprintf(file, "li $low,%d\n", node->processor.registers[33]);
+
+    if (node->processor.registers[32] != 0)
+        fprintf(file, "li $hi,%d\n", node->processor.registers[32]);
+
+    if (node->processor.registers[33] != 0)
+        fprintf(file, "li $low,%d\n", node->processor.registers[33]);
 
     fclose(file);
 }

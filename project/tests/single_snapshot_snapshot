@@ -1,6 +1,5 @@
-VALIDATE_INSTRUCTIONS=e38dfdae
-SKIP_INSTRUCTIONS=33
-li $0,0
+VALIDATE_INSTRUCTIONS=a5a7812a
+SKIP_INSTRUCTIONS=35
 li $1,1
 li $2,2
 li $3,3
@@ -32,5 +31,5 @@ li $28,28
 li $29,29
 li $30,30
 li $31,31
-li $hi,0
-li $low,0
+li $hi,32
+li $low,33

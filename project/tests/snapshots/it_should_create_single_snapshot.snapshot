@@ -65,6 +65,10 @@
 [0m[0;33mDebug: NodeProcessor->registers[30] = 30
 [0m[0;33mDebug: Running instruction "li $31,31"
 [0m[0;33mDebug: NodeProcessor->registers[31] = 31
+[0m[0;33mDebug: Running instruction "li $hi,32"
+[0m[0;33mDebug: NodeProcessor->registers[32] = 32
+[0m[0;33mDebug: Running instruction "li $low,33"
+[0m[0;33mDebug: NodeProcessor->registers[33] = 33
 [0m[0;33mDebug: Running instruction "DUMP_PROCESSOR_STATE"
 [0m[0;33mDebug: Running instruction "SNAPSHOT tests/single_snapshot_snapshot"
 [0m[0;33mDebug: Taking snapshot "tests/single_snapshot_snapshot"
@@ -102,8 +106,8 @@ R28=28
 R29=29
 R30=30
 R31=31
-Rhi=0
-Rlow=0
+Rhi=32
+Rlow=33
 R0=0
 R1=1
 R2=2
@@ -136,5 +140,5 @@ R28=28
 R29=29
 R30=30
 R31=31
-Rhi=0
-Rlow=0
+Rhi=32
+Rlow=33

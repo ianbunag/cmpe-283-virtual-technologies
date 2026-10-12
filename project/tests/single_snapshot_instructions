@@ -29,6 +29,8 @@ li $28,28
 li $29,29
 li $30,30
 li $31,31
+li $hi,32
+li $low,33
 DUMP_PROCESSOR_STATE
 SNAPSHOT tests/single_snapshot_snapshot
 DUMP_PROCESSOR_STATE
