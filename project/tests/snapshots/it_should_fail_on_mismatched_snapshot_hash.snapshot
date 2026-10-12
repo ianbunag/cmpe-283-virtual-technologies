@@ -1,0 +1,1 @@
+Error: Snapshot validation failed for "tests/mismatched_hash_snapshot_snapshot". Instructions from where snapshot was generated does not match current instructions.

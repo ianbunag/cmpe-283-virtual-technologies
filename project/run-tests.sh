@@ -77,3 +77,4 @@ set -euo pipefail
 # It should handle snapshot errors
 ./run-test.sh "$@" "it_should_fail_on_non_existent_snapshot" ./myvmm -v tests/noop_assembly_file -s tests/non_existent_snapshot
 ./run-test.sh "$@" "it_should_fail_on_snapshot_flag_before_vm_flag" ./myvmm -s tests/non_existent_snapshot -v tests/noop_assembly_file -v tests/noop_assembly_file
+./run-test.sh "$@" "it_should_fail_on_mismatched_snapshot_hash" ./myvmm -v tests/mismatched_hash_snapshot_assembly_file -s tests/mismatched_hash_snapshot_snapshot
