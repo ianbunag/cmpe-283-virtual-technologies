@@ -72,3 +72,4 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_restore_snapshot_with_absolute_path" ./myvmm -v /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_snapshot_assembly_file -s /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_snapshot_snapshot
 ./run-test.sh "$@" "it_should_create_snapshots_for_multiple_vms" ./myvmm -v tests/multiple_vms_snapshot_vm1_assembly_file -v tests/multiple_vms_snapshot_vm2_assembly_file
 ./run-test.sh "$@" "it_should_restore_snapshots_for_multiple_vms" ./myvmm -v tests/multiple_vms_snapshot_vm1_assembly_file -s tests/multiple_vms_snapshot_vm1_snapshot -v tests/multiple_vms_snapshot_vm2_assembly_file -s tests/multiple_vms_snapshot_vm2_snapshot
+./run-test.sh "$@" "it_should_warn_on_unknown_snapshot_instruction" ./myvmm -v tests/snapshot_unknown_instruction_assembly_file -s tests/snapshot_unknown_instruction_snapshot

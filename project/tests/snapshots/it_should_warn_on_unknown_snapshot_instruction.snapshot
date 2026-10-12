@@ -1,0 +1,2 @@
+Exception: Unknown snapshot instruction "add $1,$1,$2"
+R1=10

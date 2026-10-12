@@ -1076,11 +1076,7 @@ static bool restore_node(Hypervisor* hypervisor)
         else if (match_pattern(line, &hypervisor->patterns.li, match))
             load_immediate(node, match);
         else
-        {
-            fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
-            has_error = true;
-            break;
-        }
+            fprintf(stderr, "Exception: Unknown snapshot instruction \"%s\"\n", line);
     }
 
     teardown_match(match);
