@@ -1,0 +1,3 @@
+li $1,10
+SNAPSHOT snapshot_vm_snapshot
+DUMP_REGISTER_STATE $1

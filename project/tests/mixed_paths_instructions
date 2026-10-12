@@ -1,0 +1,3 @@
+li $1,10
+SNAPSHOT /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/mixed_paths_snapshot
+DUMP_REGISTER_STATE $1

@@ -27,6 +27,9 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_follow_last_of_duplicate_config" ./myvmm -v tests/duplicate_config_assembly_file
 ./run-test.sh "$@" "it_should_skip_when_no_vm_configured" ./myvmm -d
 ./run-test.sh "$@" "it_should_parse_absolute_paths" ./myvmm -d -v /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_assembly_file
+./run-test.sh "$@" "it_should_create_snapshot_with_mixed_paths" ./myvmm -v mixed_paths_assembly_file
+./run-test.sh "$@" "it_should_restore_snapshot_with_mixed_paths" ./myvmm -v mixed_paths_assembly_file -s /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/mixed_paths_snapshot
+
 
 # It should support instructions
 ./run-test.sh "$@" "it_should_load_immediate" ./myvmm -v tests/load_immediate_assembly_file
@@ -61,6 +64,11 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_restore_multiple_snapshots_second_snapshot" ./myvmm -v tests/multiple_snapshots_assembly_file -s tests/multiple_snapshots_second_snapshot
 ./run-test.sh "$@" "it_should_handle_skip_instructions_exceeding_length" ./myvmm -d -v tests/skip_instructions_exceeded_assembly_file -s tests/skip_instructions_exceeded_snapshot
 ./run-test.sh "$@" "it_should_restore_snapshot_with_blank_lines" ./myvmm -v tests/spaced_snapshot_assembly_file -s tests/spaced_snapshot_snapshot
+./run-test.sh "$@" "it_should_create_snapshot_for_vm_snapshot" ./myvmm -v assembly_file_vm_snapshot
+./run-test.sh "$@" "it_should_restore_snapshot_for_vm_snapshot" ./myvmm -v assembly_file_vm_snapshot -s snapshot_vm_snapshot
+./run-test.sh "$@" "it_should_create_snapshot_with_absolute_path" ./myvmm -v /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_snapshot_assembly_file
+./run-test.sh "$@" "it_should_restore_snapshot_with_absolute_path" ./myvmm -v /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_snapshot_assembly_file -s /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_snapshot_snapshot
+
 
 
 
