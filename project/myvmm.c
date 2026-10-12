@@ -599,8 +599,11 @@ static void take_snapshot(const Node* node, const char* snapshot_path)
     if (node == NULL || snapshot_path == NULL)
         return;
 
+    debug("Taking snapshot \"%s\"\n", snapshot_path);
+
     /* Flawfinder: ignore - snapshot path supplied by instruction */
     FILE* file = fopen(snapshot_path, "w");
+
     if (file == NULL)
     {
         fprintf(stderr, "Exception: Failed to create snapshot \"%s\"\n", snapshot_path);
@@ -608,6 +611,7 @@ static void take_snapshot(const Node* node, const char* snapshot_path)
     }
 
     char hash[HASH_STR_LEN] = {0};
+
     if (!hash_file(node->config.vm_binary, hash))
     {
         fclose(file);
@@ -634,6 +638,8 @@ static void skip_instructions(Node* node, const Match* match)
     char* skip_line = NULL;
     size_t skip_len = 0;
     long skipped = 0;
+
+    debug("Skipping %ld instructions\n", skip_count);
 
     while (skipped < skip_count)
     {
@@ -959,6 +965,8 @@ static void drop_node(Hypervisor* hypervisor, Node* target_node)
 
     if (current == target_node)
     {
+        debug("Dropping node \"%s\"\n", target_node->config.vm_binary);
+
         if (prev == NULL)
             hypervisor->head_node = target_node->next;
         else
@@ -973,6 +981,8 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
 {
     if (snapshot_file == NULL || node == NULL || patterns == NULL)
         return false;
+
+    debug("Validating snapshot \"%s\"\n", node->config.snapshot_file);
 
     char expected_hash[HASH_STR_LEN] = {0};
 
@@ -1032,6 +1042,8 @@ static bool restore_node(Hypervisor* hypervisor)
         fprintf(stderr, "Error: Snapshot file \"%s\" cannot be opened.\n", node->config.snapshot_file);
         return false;
     }
+
+    debug("Restoring node from \"%s\"\n", node->config.snapshot_file);
 
     if (!validate_snapshot(snapshot_file, node, &hypervisor->patterns))
     {
@@ -1490,7 +1502,8 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
     }
 
     hypervisor->current_node = NULL;
-    int opt;
+
+    int opt = 0;
 
     /* Flawfinder: ignore - args are validated */
     while ((opt = getopt(argc, argv, "v:s:d")) != -1)
@@ -1502,6 +1515,8 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
             debug("Debug enabled.\n");
             break;
         case 's':
+            debug("NodeConfig->snapshot_file = \"%s\"\n", optarg);
+
             if (hypervisor->current_node == NULL)
             {
                 fprintf(stderr, "Error: -s flag specified without preceding -v node.\n");
