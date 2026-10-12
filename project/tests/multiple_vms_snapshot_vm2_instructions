@@ -1,0 +1,3 @@
+li $2,20
+SNAPSHOT tests/multiple_vms_snapshot_vm2_snapshot
+DUMP_REGISTER_STATE $2
