@@ -23,6 +23,7 @@ set -euo pipefail
 
 # It should support configuration quirks
 ./run-test.sh "$@" "it_should_parse_spaced_vm_file" ./myvmm -v tests/spaced_assembly_file
+./run-test.sh "$@" "it_should_skip_blank_lines_between_instructions" ./myvmm -v tests/blank_lines_assembly_file
 ./run-test.sh "$@" "it_should_follow_last_of_duplicate_config" ./myvmm -v tests/duplicate_config_assembly_file
 ./run-test.sh "$@" "it_should_skip_when_no_vm_configured" ./myvmm -d
 ./run-test.sh "$@" "it_should_parse_absolute_paths" ./myvmm -d -v /home/johnbunag/Documents/remote-cmpe-283-virtual-technologies/project/tests/absolute_path_assembly_file
@@ -59,5 +60,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_restore_multiple_snapshots_first_snapshot" ./myvmm -v tests/multiple_snapshots_assembly_file -s tests/multiple_snapshots_first_snapshot
 ./run-test.sh "$@" "it_should_restore_multiple_snapshots_second_snapshot" ./myvmm -v tests/multiple_snapshots_assembly_file -s tests/multiple_snapshots_second_snapshot
 ./run-test.sh "$@" "it_should_handle_skip_instructions_exceeding_length" ./myvmm -d -v tests/skip_instructions_exceeded_assembly_file -s tests/skip_instructions_exceeded_snapshot
+./run-test.sh "$@" "it_should_restore_snapshot_with_blank_lines" ./myvmm -v tests/spaced_snapshot_assembly_file -s tests/spaced_snapshot_snapshot
+
 
 
