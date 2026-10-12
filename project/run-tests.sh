@@ -81,3 +81,5 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_drop_mismatched_snapshot_between_valid_vms" ./myvmm -v assembly_file_vm1 -v tests/mismatched_hash_snapshot_assembly_file -s tests/mismatched_hash_snapshot_snapshot -v assembly_file_vm2
 ./run-test.sh "$@" "it_should_fail_on_missing_skip_instructions" ./myvmm -v tests/missing_skip_instructions_snapshot_assembly_file -s tests/missing_skip_instructions_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_skip_instructions_after_li" ./myvmm -v tests/skip_after_li_snapshot_assembly_file -s tests/skip_after_li_snapshot_snapshot
+./run-test.sh "$@" "it_should_fail_on_missing_validate_instructions" ./myvmm -v tests/missing_validate_instructions_snapshot_assembly_file -s tests/missing_validate_instructions_snapshot_snapshot
+./run-test.sh "$@" "it_should_fail_on_validate_not_first_instruction" ./myvmm -v tests/validate_not_first_snapshot_assembly_file -s tests/validate_not_first_snapshot_snapshot
