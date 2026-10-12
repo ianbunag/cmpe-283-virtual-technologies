@@ -58,5 +58,6 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_create_multiple_snapshots" ./myvmm -v tests/multiple_snapshots_assembly_file
 ./run-test.sh "$@" "it_should_restore_multiple_snapshots_first_snapshot" ./myvmm -v tests/multiple_snapshots_assembly_file -s tests/multiple_snapshots_first_snapshot
 ./run-test.sh "$@" "it_should_restore_multiple_snapshots_second_snapshot" ./myvmm -v tests/multiple_snapshots_assembly_file -s tests/multiple_snapshots_second_snapshot
+./run-test.sh "$@" "it_should_handle_skip_instructions_exceeding_length" ./myvmm -d -v tests/skip_instructions_exceeded_assembly_file -s tests/skip_instructions_exceeded_snapshot
 
 

@@ -644,10 +644,7 @@ static void skip_instructions(Node* node, const Match* match)
     while (skipped < skip_count)
     {
         if (getline(&skip_line, &skip_len, node->socket.file) == -1)
-        {
-            node->socket.has_pending_instructions = false;
             break;
-        }
 
         skip_line[strcspn(skip_line, "\r\n")] = '\0';
 
