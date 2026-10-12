@@ -83,3 +83,4 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_fail_on_skip_instructions_after_li" ./myvmm -v tests/skip_after_li_snapshot_assembly_file -s tests/skip_after_li_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_missing_validate_instructions" ./myvmm -v tests/missing_validate_instructions_snapshot_assembly_file -s tests/missing_validate_instructions_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_validate_not_first_instruction" ./myvmm -v tests/validate_not_first_snapshot_assembly_file -s tests/validate_not_first_snapshot_snapshot
+./run-test.sh "$@" "it_should_fail_on_create_snapshot_in_non_existent_directory" ./myvmm -v tests/non_existent_directory_snapshot_assembly_file

@@ -1,0 +1,3 @@
+li $1,10
+SNAPSHOT non_existent_directory/non_existent_snapshot
+DUMP_REGISTER_STATE $1
