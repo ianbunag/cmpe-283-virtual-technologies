@@ -73,3 +73,6 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_create_snapshots_for_multiple_vms" ./myvmm -v tests/multiple_vms_snapshot_vm1_assembly_file -v tests/multiple_vms_snapshot_vm2_assembly_file
 ./run-test.sh "$@" "it_should_restore_snapshots_for_multiple_vms" ./myvmm -v tests/multiple_vms_snapshot_vm1_assembly_file -s tests/multiple_vms_snapshot_vm1_snapshot -v tests/multiple_vms_snapshot_vm2_assembly_file -s tests/multiple_vms_snapshot_vm2_snapshot
 ./run-test.sh "$@" "it_should_warn_on_unknown_snapshot_instruction" ./myvmm -v tests/snapshot_unknown_instruction_assembly_file -s tests/snapshot_unknown_instruction_snapshot
+
+# It should handle snapshot errors
+./run-test.sh "$@" "it_should_fail_on_non_existent_snapshot" ./myvmm -v tests/noop_assembly_file -s tests/non_existent_snapshot
