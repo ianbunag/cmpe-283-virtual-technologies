@@ -1,0 +1,8 @@
+li $1,10
+SNAPSHOT tests/multiple_snapshots_first_snapshot
+DUMP_REGISTER_STATE $1
+li $2,20
+SNAPSHOT tests/multiple_snapshots_second_snapshot
+DUMP_REGISTER_STATE $2
+li $3,30
+DUMP_PROCESSOR_STATE
