@@ -997,7 +997,8 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
     char* line = NULL;
     size_t len = 0;
     Match* match = NULL;
-    bool is_validated = false;
+    bool is_hash_validated = false;
+    bool is_skip_validated = false;
 
     while (getline(&line, &len, snapshot_file) != -1)
     {
@@ -1009,8 +1010,20 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
         if (!initialize_match(&match))
             break;
 
-        is_validated = match_pattern(line, &patterns->validate_instructions, match) &&
-            strcmp(match->capture_groups[0], expected_hash) == 0;
+        if (!is_hash_validated)
+        {
+            if (match_pattern(line, &patterns->validate_instructions, match) &&
+                strcmp(match->capture_groups[0], expected_hash) == 0)
+            {
+                is_hash_validated = true;
+                continue;
+            }
+
+            break;
+        }
+
+        if (match_pattern(line, &patterns->skip_instructions, match))
+            is_skip_validated = true;
 
         break;
     }
@@ -1020,13 +1033,19 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
     if (line != NULL)
         free(line);
 
-    if (!is_validated)
+    if (!is_hash_validated)
         fprintf(stderr,
                 "Error: Snapshot validation failed for \"%s\". Instructions from where snapshot was generated does not "
                 "match current instructions.\n",
                 node->config.snapshot_file);
+    else if (!is_skip_validated)
+        fprintf(stderr,
+                "Error: Snapshot validation failed for \"%s\". Missing or invalid SKIP_INSTRUCTIONS.\n",
+                node->config.snapshot_file);
 
-    return is_validated;
+    rewind(snapshot_file);
+
+    return is_hash_validated && is_skip_validated;
 }
 
 static bool restore_node(Hypervisor* hypervisor)
@@ -1071,7 +1090,9 @@ static bool restore_node(Hypervisor* hypervisor)
             break;
         }
 
-        if (match_pattern(line, &hypervisor->patterns.skip_instructions, match))
+        if (match_pattern(line, &hypervisor->patterns.validate_instructions, match))
+            continue;
+        else if (match_pattern(line, &hypervisor->patterns.skip_instructions, match))
             skip_instructions(node, match);
         else if (match_pattern(line, &hypervisor->patterns.li, match))
             load_immediate(node, match);
