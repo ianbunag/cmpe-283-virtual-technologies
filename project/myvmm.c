@@ -610,6 +610,7 @@ static void take_snapshot(const Node* node, const char* snapshot_path)
         return;
     }
 
+    /* Flawfinder: ignore - fixed size FNV-1 32-bit hex hash string */
     char hash[HASH_STR_LEN] = {0};
 
     if (!hash_file(node->config.vm_binary, hash))
@@ -986,6 +987,7 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
 
     debug("Validating snapshot \"%s\"\n", node->config.snapshot_file);
 
+    /* Flawfinder: ignore - fixed size FNV-1 32-bit hex hash string */
     char expected_hash[HASH_STR_LEN] = {0};
 
     if (!hash_file(node->config.vm_binary, expected_hash))
