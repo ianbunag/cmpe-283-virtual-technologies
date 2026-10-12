@@ -1,0 +1,6 @@
+li $1,10
+li $2,20
+SNAPSHOT tests/snapshot_mutations_snapshot
+li $3,100
+li $4,200
+DUMP_PROCESSOR_STATE
