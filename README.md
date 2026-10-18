@@ -95,3 +95,48 @@ To activate code completion and IntelliSense in CLion:
 2. Click the green **Run** (play) button in the editor gutter beside `main`.
 
 This allows CLion to resolve the execution context and index project symbols, enabling full code navigation, diagnostics, and auto-completion.
+
+## Running Lint and Tests
+
+### 1. SSH Configuration
+
+Add the host entry to your `~/.ssh/config`:
+
+```ssh-config
+Host cmpe-283
+    HostName cmpe-283.<root-domain>
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    RequestTTY yes
+    RemoteCommand cd ~/Documents/remote-cmpe-283-virtual-technologies && exec $SHELL -l
+```
+
+### 2. Connect to the Remote VM
+
+Connect directly via SSH:
+
+```bash
+ssh cmpe-283
+```
+
+Navigate into the project directory:
+
+```bash
+cd project
+```
+
+### 3. Run Lint (SAST & DAST)
+
+Compiles the hypervisor, performs static analysis via `flawfinder`, and executes dynamic memory leak checking via `valgrind`:
+
+```bash
+./run-lint.sh
+```
+
+### 4. Run Tests
+
+Builds the binary and runs the complete automated regression test suite:
+
+```bash
+./run-tests.sh
+```
