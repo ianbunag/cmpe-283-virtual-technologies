@@ -1,4 +1,11 @@
-# CMPE-283 Virtual Technologies
+# MIPS Virtual Machine Monitor (VMM)
+
+A user-space virtual machine monitor and hypervisor written in C, featuring MIPS instruction emulation, round-robin multi-VM scheduling, state snapshotting, and TCP-based live migration across host systems.
+
+> **Context:** Graduate Research Project — **CMPE-283: Virtual Technologies** (Fall 2026)  
+> **Researcher:** [John Ian Buñag](https://github.com/ianbunag)  
+> **Core Engine:** [myvmm.c](./project/myvmm.c)  
+> **Infrastructure & Tooling:** [Terraform Cloud Lab](./terraform/) | [Ansible Automation](./ansible/)
 
 ## Prerequisites
 
@@ -27,6 +34,32 @@ Store the private key in Google Cloud Secret Manager:
 - **Replication policy**:
   - **Manually manage locations for this secret**: Enabled
   - **Location(s)**: `us-west1`
+
+## Terraform Lab Provisioning
+
+This repository's [`terraform/`](./terraform/) directory is designed as a reusable module to provision the virtualized research environment on Google Cloud Platform with Cloudflare DNS management:
+
+```hcl
+provider "cloudflare" {
+  api_token = ""
+}
+
+provider "google" {
+  project               = ""
+  region                = "us-west1"
+  zone                  = "us-west1-b"
+  user_project_override = true
+}
+
+module "cmpe_283" {
+  source = "git@github.com:ianbunag/mips-virtual-machine-monitor.git//terraform"
+  root_domain                             = ""
+  cloudflare_update_dns_token_secret_name = ""
+  cloudflare_zone_id                      = ""
+  ssh_public_key_file                     = ""
+  ssh_username                            = ""
+}
+```
 
 ## Remote Development
 
