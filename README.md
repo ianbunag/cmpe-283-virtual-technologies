@@ -51,7 +51,7 @@ provider "google" {
   user_project_override = true
 }
 
-module "cmpe_283" {
+module "mips-virtual-machine-monitor" {
   source = "git@github.com:ianbunag/mips-virtual-machine-monitor.git//terraform"
   root_domain                             = ""
   cloudflare_update_dns_token_secret_name = ""
