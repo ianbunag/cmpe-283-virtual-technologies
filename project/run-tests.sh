@@ -140,7 +140,8 @@ run_test_async "$@" "it_should_support_self_migration_with_multiple_vms" ./myvmm
 
 # It should support cross-process live migration
 run_test_async "$@" "it_should_receive_cross_process_migration" ./myvmm -p 9900 -t 2
-sleep 0.5
 run_test_async "$@" "it_should_send_cross_process_migration" ./myvmm -v tests/cross_process_migration_assembly_file
+run_test_async "$@" "it_should_round_trip_migrate_vm_a" ./myvmm -p 9901 -t 3 -v tests/round_trip_vm_a_assembly_file
+run_test_async "$@" "it_should_round_trip_migrate_vm_b" ./myvmm -p 9902 -t 3 -v tests/round_trip_vm_b_assembly_file
 
 wait_for_async_tests

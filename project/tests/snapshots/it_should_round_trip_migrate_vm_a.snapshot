@@ -1,0 +1,5 @@
+R1=10
+R2=22
+R1=12
+No VM running, waiting for incoming VM migration on port 9901...
+Server timeout reached after 3 seconds, closing server.
