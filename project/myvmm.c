@@ -1642,14 +1642,11 @@ static bool run_hypervisor(Hypervisor* hypervisor)
             if (hypervisor->server_socket_file_descriptor < 0)
                 return true;
 
-            int poll_timeout_ms = 5000;
+            int poll_timeout_ms = 3000;
 
             if (hypervisor->server_timeout_seconds > 0)
             {
                 const int remaining_ms = (hypervisor->server_timeout_seconds - idle_seconds_elapsed) * 1000;
-
-                if (remaining_ms <= 0)
-                    break;
 
                 if (remaining_ms < poll_timeout_ms)
                     poll_timeout_ms = remaining_ms;
@@ -1670,16 +1667,21 @@ static bool run_hypervisor(Hypervisor* hypervisor)
             {
                 idle_seconds_elapsed += (poll_timeout_ms / 1000);
 
-                if (hypervisor->server_timeout_seconds > 0 &&
-                    idle_seconds_elapsed >= hypervisor->server_timeout_seconds)
-                {
-                    break;
-                }
-
                 fprintf(stdout,
                         "No VM running, waiting for incoming VM migration on port %d...\n",
                         hypervisor->server_port);
                 fflush(stdout);
+
+                if (hypervisor->server_timeout_seconds > 0 &&
+                    idle_seconds_elapsed >= hypervisor->server_timeout_seconds)
+                {
+                    fprintf(stdout,
+                            "Server timeout reached after %d seconds, closing server.\n",
+                            hypervisor->server_timeout_seconds);
+                    fflush(stdout);
+                    break;
+                }
+
                 continue;
             }
 

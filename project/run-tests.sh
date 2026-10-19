@@ -4,6 +4,46 @@ set -euo pipefail
 
 ./build.sh
 
+BACKGROUND_PIDS=()
+BACKGROUND_LOGS=()
+
+cleanup_async_logs() {
+    for log_file in "${BACKGROUND_LOGS[@]}"; do
+        rm -f "$log_file"
+    done
+}
+trap cleanup_async_logs EXIT
+
+run_test_async() {
+    local log_file
+    log_file=$(mktemp)
+    BACKGROUND_LOGS+=("$log_file")
+
+    ./run-test.sh "$@" > "$log_file" 2>&1 &
+    BACKGROUND_PIDS+=($!)
+}
+
+wait_for_async_tests() {
+    local failed=0
+    local i
+
+    for i in "${!BACKGROUND_PIDS[@]}"; do
+        local pid="${BACKGROUND_PIDS[$i]}"
+        local log_file="${BACKGROUND_LOGS[$i]}"
+
+        wait "$pid" || failed=1
+        cat "$log_file"
+        rm -f "$log_file"
+    done
+
+    BACKGROUND_PIDS=()
+    BACKGROUND_LOGS=()
+
+    if [[ $failed -ne 0 ]]; then
+        exit 1
+    fi
+}
+
 # It should run example files
 ./run-test.sh "$@" "it_should_run_assembly_file_vm1" ./myvmm -v assembly_file_vm1
 ./run-test.sh "$@" "it_should_run_assembly_file_vm2" ./myvmm -v assembly_file_vm2
@@ -94,5 +134,6 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_fail_on_create_snapshot_in_non_existent_directory" ./myvmm -v tests/non_existent_directory_snapshot_assembly_file
 
 # It should support live migration
-./run-test.sh "$@" "it_should_support_live_migration" ./myvmm -d -p 9090 -t 1 -v tests/live_migration_assembly_file
-
+run_test_async "$@" "it_should_support_live_migration" ./myvmm -d -p 9090 -t 1 -v tests/live_migration_assembly_file
+run_test_async "$@" "it_should_timeout_when_no_migration_received" ./myvmm -p 9091 -t 6
+wait_for_async_tests
