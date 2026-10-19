@@ -137,6 +137,7 @@ wait_for_async_tests() {
 run_test_async "$@" "it_should_support_live_migration" ./myvmm -d -p 9090 -t 1 -v tests/live_migration_assembly_file
 run_test_async "$@" "it_should_timeout_when_no_migration_received" ./myvmm -p 9091 -t 6
 run_test_async "$@" "it_should_support_self_migration_with_multiple_vms" ./myvmm -p 9093 -t 1 -v tests/self_migration_vm1_assembly_file -v tests/self_migration_vm2_assembly_file
+run_test_async "$@" "it_should_support_multiple_migrations_in_same_instruction_file" ./myvmm -p 9094 -t 1 -v tests/multiple_self_migrations_assembly_file
 
 # It should support cross-process live migration
 run_test_async "$@" "it_should_receive_cross_process_migration" ./myvmm -p 9900 -t 2
