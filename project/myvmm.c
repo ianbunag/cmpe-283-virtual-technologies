@@ -1367,13 +1367,11 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
     return has_validate_instruction && is_hash_matched && is_skip_validated;
 }
 
-static bool restore_node(const Hypervisor* hypervisor)
+static bool restore_node(Node* node, const Patterns* patterns)
 {
-    if (hypervisor == NULL || hypervisor->current_node == NULL || hypervisor->current_node->config.snapshot_file ==
-        NULL)
+    if (node == NULL || patterns == NULL || node->config.snapshot_file == NULL)
         return false;
 
-    Node* node = hypervisor->current_node;
     /* Flawfinder: ignore - snapshot file supplied by user */
     FILE* snapshot_file = fopen(node->config.snapshot_file, "r");
 
@@ -1385,7 +1383,7 @@ static bool restore_node(const Hypervisor* hypervisor)
 
     debug("Restoring node from \"%s\"\n", node->config.snapshot_file);
 
-    if (!validate_snapshot(snapshot_file, node, &hypervisor->patterns))
+    if (!validate_snapshot(snapshot_file, node, patterns))
     {
         fclose(snapshot_file);
         return false;
@@ -1409,11 +1407,11 @@ static bool restore_node(const Hypervisor* hypervisor)
             break;
         }
 
-        if (match_pattern(line, &hypervisor->patterns.validate_instructions, match))
+        if (match_pattern(line, &patterns->validate_instructions, match))
             continue;
-        else if (match_pattern(line, &hypervisor->patterns.skip_instructions, match))
+        else if (match_pattern(line, &patterns->skip_instructions, match))
             skip_instructions(node, match);
-        else if (match_pattern(line, &hypervisor->patterns.li, match))
+        else if (match_pattern(line, &patterns->li, match))
             load_immediate(node, match);
         else
             fprintf(stderr, "Exception: Unknown snapshot instruction \"%s\"\n", line);
@@ -1436,9 +1434,7 @@ static bool restore_node_snapshot(Hypervisor* hypervisor, Node* node)
     if (node->config.snapshot_file == NULL)
         return true;
 
-    hypervisor->current_node = node;
-
-    if (!restore_node(hypervisor))
+    if (!restore_node(node, &hypervisor->patterns))
     {
         drop_node(hypervisor, node);
         return false;

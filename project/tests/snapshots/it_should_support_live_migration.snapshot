@@ -29,6 +29,7 @@
 [0m[0;33mDebug: NodeProcessor->registers[3] = 30
 [0m[0;33mDebug: Successfully received and restored migrated node "/tmp/myvmm_received_instr_9090_0"
 [0m[0;33mDebug: Transferring pending node "/tmp/myvmm_received_instr_9090_0" to running list
+[0m[0;33mDebug: Hypervisor->current_node = "/tmp/myvmm_received_instr_9090_0"
 [0m[0;33mDebug: Running instruction "addi $3,$3,12"
 [0m[0;33mDebug: NodeProcessor->registers[3] = 42
 [0m[0;33mDebug: Running instruction "DUMP_REGISTER_STATE $3"
