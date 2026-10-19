@@ -850,18 +850,26 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
 
     int client_file_descriptor = -1;
 
-    for (struct addrinfo* rp = res; rp != NULL; rp = rp->ai_next)
+    for (int attempt = 0; attempt < 20; attempt++)
     {
-        client_file_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        for (struct addrinfo* rp = res; rp != NULL; rp = rp->ai_next)
+        {
+            client_file_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 
-        if (client_file_descriptor < 0)
-            continue;
+            if (client_file_descriptor < 0)
+                continue;
 
-        if (connect(client_file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0)
+            if (connect(client_file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0)
+                break;
+
+            close(client_file_descriptor);
+            client_file_descriptor = -1;
+        }
+
+        if (client_file_descriptor >= 0)
             break;
 
-        close(client_file_descriptor);
-        client_file_descriptor = -1;
+        usleep(50000);
     }
 
     freeaddrinfo(res);
