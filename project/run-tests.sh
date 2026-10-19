@@ -24,6 +24,10 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_fail_on_privileged_port" ./myvmm -p 80
 ./run-test.sh "$@" "it_should_fail_on_out_of_range_port" ./myvmm -p 70000
 ./run-test.sh "$@" "it_should_fail_on_non_numeric_port" ./myvmm -p abc
+./run-test.sh "$@" "it_should_fail_on_migrate_to_privileged_port" ./myvmm -v tests/migration_privileged_port_assembly_file
+./run-test.sh "$@" "it_should_fail_on_migrate_to_out_of_range_port" ./myvmm -v tests/migration_out_of_range_port_assembly_file
+./run-test.sh "$@" "it_should_fail_on_invalid_timeout" ./myvmm -t 0
+
 
 # It should support configuration quirks
 ./run-test.sh "$@" "it_should_parse_spaced_vm_file" ./myvmm -v tests/spaced_assembly_file
@@ -88,3 +92,7 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_fail_on_missing_validate_instructions" ./myvmm -v tests/missing_validate_instructions_snapshot_assembly_file -s tests/missing_validate_instructions_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_validate_not_first_instruction" ./myvmm -v tests/validate_not_first_snapshot_assembly_file -s tests/validate_not_first_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_create_snapshot_in_non_existent_directory" ./myvmm -v tests/non_existent_directory_snapshot_assembly_file
+
+# It should support live migration
+./run-test.sh "$@" "it_should_support_live_migration" ./myvmm -d -p 9090 -t 1 -v tests/live_migration_assembly_file
+

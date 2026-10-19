@@ -6,6 +6,12 @@
 #include <stdarg.h>
 #include <regex.h>
 #include <stdint.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <poll.h>
+#include <signal.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
@@ -13,7 +19,17 @@
 #define COLOR_YELLOW "\033[0;33m"
 #define COLOR_RESET "\033[0m"
 
+static const char* received_file_prefix = "/tmp/myvmm_received_";
+static const size_t received_file_prefix_length = sizeof(received_file_prefix) - 1;
+
 static bool debug_enabled = false;
+static volatile sig_atomic_t keep_running = 1;
+
+static void handle_signal(int sig)
+{
+    (void)sig;
+    keep_running = 0;
+}
 
 /* Flawfinder: ignore - gcc format attribute */
 __attribute__((unused, format(printf, 1, 2)))
@@ -63,6 +79,7 @@ typedef struct Patterns
     Pattern snapshot;
     Pattern validate_instructions;
     Pattern skip_instructions;
+    Pattern migrate;
 } Patterns;
 
 typedef struct Match
@@ -211,7 +228,8 @@ typedef struct Hypervisor
     Patterns patterns;
     unsigned int node_count;
     int server_port;
-    int server_socket_fd;
+    int server_socket_file_descriptor;
+    int server_timeout_seconds;
 } Hypervisor;
 
 static bool get_register_key(const char* raw_key, int8_t* key)
@@ -578,7 +596,6 @@ static bool hash_file(const char* file_path, char* output_hash)
     if (file == NULL)
         return false;
 
-    const uint32_t fnv_32_prime = 0x01000193;
     uint32_t hash = 0x811c9dc5;
     uint8_t buffer[4096];
     size_t bytes_read;
@@ -587,6 +604,7 @@ static bool hash_file(const char* file_path, char* output_hash)
     {
         for (size_t i = 0; i < bytes_read; i++)
         {
+            const uint32_t fnv_32_prime = 0x01000193;
             hash ^= (uint32_t)buffer[i];
             hash *= fnv_32_prime;
         }
@@ -641,6 +659,234 @@ static void take_snapshot(const Node* node, const char* snapshot_path)
     fclose(file);
 }
 
+static bool send_all(int file_descriptor, const void* buffer, size_t length)
+{
+    const uint8_t* ptr = buffer;
+    size_t remaining = length;
+
+    while (remaining > 0)
+    {
+        ssize_t sent = write(file_descriptor, ptr, remaining);
+
+        if (sent <= 0)
+            return false;
+
+        ptr += sent;
+        remaining -= (size_t)sent;
+    }
+
+    return true;
+}
+
+static bool read_all(int file_descriptor, void* buffer, size_t length)
+{
+    uint8_t* ptr = (uint8_t*)buffer;
+    size_t remaining = length;
+
+    while (remaining > 0)
+    {
+        /* Flawfinder: ignore - buffer boundary strictly constrained by remaining bytes */
+        ssize_t received = read(file_descriptor, ptr, remaining);
+
+        if (received <= 0)
+            return false;
+
+        ptr += received;
+        remaining -= (size_t)received;
+    }
+
+    return true;
+}
+
+static bool send_file_payload(int socket_file_descriptor, const char* file_path)
+{
+    if (socket_file_descriptor < 0 || file_path == NULL)
+        return false;
+
+    /* Flawfinder: ignore - internal configuration or snapshot path */
+    FILE* file = fopen(file_path, "rb");
+
+    if (file == NULL)
+    {
+        fprintf(stderr, "Error: Failed to open file \"%s\" for migration transfer.\n", file_path);
+        return false;
+    }
+
+    if (fseek(file, 0, SEEK_END) != 0)
+    {
+        fclose(file);
+        return false;
+    }
+
+    long file_size = ftell(file);
+
+    if (file_size < 0)
+    {
+        fclose(file);
+        return false;
+    }
+
+    rewind(file);
+
+    uint32_t net_len = htonl((uint32_t)file_size);
+
+    if (!send_all(socket_file_descriptor, &net_len, sizeof(net_len)))
+    {
+        fclose(file);
+        return false;
+    }
+
+    uint8_t buffer[4096];
+    size_t remaining = (size_t)file_size;
+
+    while (remaining > 0)
+    {
+        size_t to_read = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
+        size_t bytes_read = fread(buffer, 1, to_read, file);
+
+        if (bytes_read != to_read)
+        {
+            fclose(file);
+            return false;
+        }
+
+        if (!send_all(socket_file_descriptor, buffer, to_read))
+        {
+            fclose(file);
+            return false;
+        }
+
+        remaining -= to_read;
+    }
+
+    fclose(file);
+    return true;
+}
+
+static bool receive_file_payload(int socket_file_descriptor, const char* output_path)
+{
+    if (socket_file_descriptor < 0 || output_path == NULL)
+        return false;
+
+    uint32_t net_len = 0;
+
+    if (!read_all(socket_file_descriptor, &net_len, sizeof(net_len)))
+        return false;
+
+    uint32_t len = ntohl(net_len);
+
+    /* Flawfinder: ignore - temporary file destination */
+    FILE* file = fopen(output_path, "wb");
+
+    if (file == NULL)
+    {
+        fprintf(stderr, "Error: Failed to open output file \"%s\" for received migration.\n", output_path);
+        return false;
+    }
+
+    uint8_t buffer[4096];
+    size_t remaining = len;
+
+    while (remaining > 0)
+    {
+        size_t to_read = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
+
+        if (!read_all(socket_file_descriptor, buffer, to_read))
+        {
+            fclose(file);
+            return false;
+        }
+
+        if (fwrite(buffer, 1, to_read, file) != to_read)
+        {
+            fclose(file);
+            return false;
+        }
+
+        remaining -= to_read;
+    }
+
+    fclose(file);
+    return true;
+}
+
+static void migrate_node(const Hypervisor* hypervisor, const Match* match)
+{
+    if (hypervisor == NULL || hypervisor->current_node == NULL || match == NULL)
+        return;
+
+    static unsigned int tx_counter = 0;
+    const char* host = match->capture_groups[0];
+    const char* port_str = match->capture_groups[1];
+    char* endptr = NULL;
+    const long port = strtol(port_str, &endptr, 10);
+
+    if (endptr == port_str || *endptr != '\0' || port < 1024 || port > 65535)
+    {
+        fprintf(stderr,
+                "Error: Invalid migration port \"%s\". Only unprivileged ports (1024-65535) are supported.\n",
+                port_str);
+        return;
+    }
+
+    char snap_path[MAX_LINE_LEN];
+
+    snprintf(snap_path, sizeof(snap_path), "/tmp/myvmm_snap_%ld_%u", port, tx_counter++);
+    take_snapshot(hypervisor->current_node, snap_path);
+
+    struct addrinfo hints;
+    struct addrinfo* res = NULL;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(host, port_str, &hints, &res) != 0 || res == NULL)
+    {
+        fprintf(stderr, "Error: Failed to resolve migration target \"%s:%s\".\n", host, port_str);
+        unlink(snap_path);
+        return;
+    }
+
+    int client_file_descriptor = -1;
+
+    for (struct addrinfo* rp = res; rp != NULL; rp = rp->ai_next)
+    {
+        client_file_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+
+        if (client_file_descriptor < 0)
+            continue;
+
+        if (connect(client_file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0)
+            break;
+
+        close(client_file_descriptor);
+        client_file_descriptor = -1;
+    }
+
+    freeaddrinfo(res);
+
+    if (client_file_descriptor < 0)
+    {
+        fprintf(stderr, "Error: Failed to connect to migration target \"%s:%s\".\n", host, port_str);
+        unlink(snap_path);
+        return;
+    }
+
+    debug("Migrating node \"%s\" to %s:%s\n", hypervisor->current_node->config.vm_binary, host, port_str);
+
+    if (!send_file_payload(client_file_descriptor, hypervisor->current_node->config.assembly_file_name) ||
+        !send_file_payload(client_file_descriptor, hypervisor->current_node->config.vm_binary) ||
+        !send_file_payload(client_file_descriptor, snap_path))
+    {
+        fprintf(stderr, "Error: Failed to transmit migration payload to %s:%s.\n", host, port_str);
+    }
+
+    close(client_file_descriptor);
+    unlink(snap_path);
+    hypervisor->current_node->socket.has_pending_instructions = false;
+}
+
 static void skip_instructions(Node* node, const Match* match)
 {
     const long skip_count = strtol(match->capture_groups[0], NULL, 10);
@@ -669,15 +915,17 @@ static void skip_instructions(Node* node, const Match* match)
     node->processor.executed_instructions = (int32_t)skip_count;
 }
 
-static bool run_node(Hypervisor* hypervisor)
+static bool run_node(const Hypervisor* hypervisor)
 {
-    ssize_t chars_read;
+    ssize_t chars_read = 0;
     char* line = NULL;
     size_t len = 0;
     Match* match = NULL;
     bool has_error = false;
 
-    while ((chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
+    while (
+        hypervisor->current_node->socket.has_pending_instructions &&
+        (chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
     {
         line[strcspn(line, "\r\n")] = '\0'; // Remove line breaks.
 
@@ -732,6 +980,8 @@ static bool run_node(Hypervisor* hypervisor)
             xor(&hypervisor->current_node->processor, match);
         else if (match_pattern(line, &hypervisor->patterns.snapshot, match))
             take_snapshot(hypervisor->current_node, match->capture_groups[0]);
+        else if (match_pattern(line, &hypervisor->patterns.migrate, match))
+            migrate_node(hypervisor, match);
         else
             fprintf(stderr, "Exception: Unknown instruction \"%s\"\n", line);
 
@@ -807,6 +1057,9 @@ static void teardown_node_config(NodeConfig* config)
 
     if (config->assembly_file_name != NULL)
     {
+        if (strncmp(config->assembly_file_name, received_file_prefix, received_file_prefix_length) == 0)
+            unlink(config->assembly_file_name);
+
         memset(config->assembly_file_name, 0, strnlen(config->assembly_file_name, MAX_ARG_LEN));
         free(config->assembly_file_name);
         config->assembly_file_name = NULL;
@@ -814,6 +1067,9 @@ static void teardown_node_config(NodeConfig* config)
 
     if (config->vm_binary != NULL)
     {
+        if (strncmp(config->vm_binary, received_file_prefix, received_file_prefix_length) == 0)
+            unlink(config->vm_binary);
+
         memset(config->vm_binary, 0, strnlen(config->vm_binary, MAX_LINE_LEN));
         free(config->vm_binary);
         config->vm_binary = NULL;
@@ -821,6 +1077,9 @@ static void teardown_node_config(NodeConfig* config)
 
     if (config->snapshot_file != NULL)
     {
+        if (strncmp(config->snapshot_file, received_file_prefix, received_file_prefix_length) == 0)
+            unlink(config->snapshot_file);
+
         memset(config->snapshot_file, 0, strnlen(config->snapshot_file, MAX_LINE_LEN));
         free(config->snapshot_file);
         config->snapshot_file = NULL;
@@ -1014,7 +1273,7 @@ static void transfer_pending_to_running(Hypervisor* hypervisor)
     hypervisor->pending_head = NULL;
 }
 
-static void debug_node(Hypervisor* hypervisor)
+static void debug_node(const Hypervisor* hypervisor)
 {
     debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
 }
@@ -1028,48 +1287,6 @@ static void switch_node(Hypervisor* hypervisor)
     debug_node(hypervisor);
 }
 
-static bool run_hypervisor(Hypervisor* hypervisor)
-{
-    if (hypervisor == NULL)
-        return false;
-
-    if (hypervisor->head_node == NULL && hypervisor->pending_head != NULL)
-    {
-        transfer_pending_to_running(hypervisor);
-        hypervisor->current_node = hypervisor->head_node;
-    }
-
-    if (hypervisor->head_node == NULL)
-        return true;
-
-    debug_node(hypervisor);
-
-    while (hypervisor->node_count > 0)
-    {
-        if (!run_node(hypervisor))
-            return false;
-
-        if (!hypervisor->current_node->socket.has_pending_instructions)
-        {
-            Node* finished_node = hypervisor->current_node;
-
-            switch_node(hypervisor);
-            drop_node(hypervisor, finished_node);
-
-            if (hypervisor->head_node == NULL && hypervisor->pending_head != NULL)
-            {
-                transfer_pending_to_running(hypervisor);
-                hypervisor->current_node = hypervisor->head_node;
-            }
-
-            continue;
-        }
-
-        switch_node(hypervisor);
-    }
-
-    return true;
-}
 
 static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patterns* patterns)
 {
@@ -1150,7 +1367,7 @@ static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patte
     return has_validate_instruction && is_hash_matched && is_skip_validated;
 }
 
-static bool restore_node(Hypervisor* hypervisor)
+static bool restore_node(const Hypervisor* hypervisor)
 {
     if (hypervisor == NULL || hypervisor->current_node == NULL || hypervisor->current_node->config.snapshot_file ==
         NULL)
@@ -1273,6 +1490,250 @@ static Node* setup_node(char* assembly_file_name, const Patterns* patterns)
     reset_node_processor(&node->processor);
 
     return node;
+}
+
+static bool receive_migrated_node(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->server_socket_file_descriptor < 0)
+        return false;
+
+    static unsigned int received_counter = 0;
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_file_descriptor =
+        accept(hypervisor->server_socket_file_descriptor, (struct sockaddr*)&client_addr, &client_addr_len);
+
+    if (client_file_descriptor < 0)
+        return false;
+
+    char raw_cfg_path[MAX_LINE_LEN];
+    char instr_path[MAX_LINE_LEN];
+    char snap_path[MAX_LINE_LEN];
+    char cfg_path[MAX_LINE_LEN];
+
+    snprintf(raw_cfg_path, sizeof(raw_cfg_path), "%sraw_%d_%u", received_file_prefix, hypervisor->server_port,
+             received_counter);
+    snprintf(instr_path, sizeof(instr_path), "%sinstr_%d_%u", received_file_prefix, hypervisor->server_port,
+             received_counter);
+    snprintf(snap_path, sizeof(snap_path), "%ssnap_%d_%u", received_file_prefix, hypervisor->server_port,
+             received_counter);
+    snprintf(cfg_path, sizeof(cfg_path), "%scfg_%d_%u", received_file_prefix, hypervisor->server_port,
+             received_counter);
+
+    received_counter++;
+
+    if (!receive_file_payload(client_file_descriptor, raw_cfg_path) ||
+        !receive_file_payload(client_file_descriptor, instr_path) ||
+        !receive_file_payload(client_file_descriptor, snap_path))
+    {
+        fprintf(stderr, "Error: Failed to receive complete migration payload.\n");
+        unlink(raw_cfg_path);
+        unlink(instr_path);
+        unlink(snap_path);
+        close(client_file_descriptor);
+        return false;
+    }
+
+    close(client_file_descriptor);
+
+    /* Flawfinder: ignore - temporary file */
+    FILE* raw_cfg = fopen(raw_cfg_path, "r");
+    /* Flawfinder: ignore - temporary file */
+    FILE* out_cfg = fopen(cfg_path, "w");
+
+    if (raw_cfg == NULL || out_cfg == NULL)
+    {
+        if (raw_cfg != NULL)
+            fclose(raw_cfg);
+
+        if (out_cfg != NULL)
+            fclose(out_cfg);
+
+        unlink(raw_cfg_path);
+        unlink(instr_path);
+        unlink(snap_path);
+        unlink(cfg_path);
+        return false;
+    }
+
+    char* line = NULL;
+    size_t line_len = 0;
+    Match* match = NULL;
+
+    while (getline(&line, &line_len, raw_cfg) != -1)
+    {
+        if (initialize_match(&match) && match_pattern(line, &hypervisor->patterns.vm_binary, match))
+            fprintf(out_cfg, "vm_binary = %s\n", instr_path);
+        else
+            fputs(line, out_cfg);
+
+        teardown_match(match);
+        match = NULL;
+    }
+
+    if (line != NULL)
+        free(line);
+
+    fclose(raw_cfg);
+    fclose(out_cfg);
+    unlink(raw_cfg_path);
+
+    Node* node = setup_node(cfg_path, &hypervisor->patterns);
+
+    if (node == NULL)
+    {
+        unlink(instr_path);
+        unlink(snap_path);
+        unlink(cfg_path);
+        return false;
+    }
+
+    node->config.snapshot_file = strndup(snap_path, sizeof(snap_path));
+
+    if (node->config.snapshot_file == NULL)
+    {
+        teardown_node(node);
+        return false;
+    }
+
+    enqueue_pending_node(hypervisor, node);
+
+    if (!restore_node_snapshot(hypervisor, node))
+        return false;
+
+    debug("Successfully received and restored migrated node \"%s\"\n", node->config.vm_binary);
+
+    return true;
+}
+
+static bool check_and_receive_migration(Hypervisor* hypervisor, const int timeout_ms)
+{
+    if (hypervisor == NULL || hypervisor->server_socket_file_descriptor < 0)
+        return false;
+
+    struct pollfd poll_file_descriptor;
+
+    poll_file_descriptor.fd = hypervisor->server_socket_file_descriptor;
+    poll_file_descriptor.events = POLLIN;
+    poll_file_descriptor.revents = 0;
+
+    int ret = poll(&poll_file_descriptor, 1, timeout_ms);
+
+    if (ret > 0 && (poll_file_descriptor.revents & POLLIN))
+    {
+        return receive_migrated_node(hypervisor);
+    }
+
+    return false;
+}
+
+static bool run_hypervisor(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL)
+        return false;
+
+    int idle_seconds_elapsed = 0;
+
+    while (keep_running)
+    {
+        // Wait for incoming migrations.
+        if (hypervisor->head_node == NULL && hypervisor->pending_head == NULL)
+        {
+            if (hypervisor->server_socket_file_descriptor < 0)
+                return true;
+
+            int poll_timeout_ms = 5000;
+
+            if (hypervisor->server_timeout_seconds > 0)
+            {
+                const int remaining_ms = (hypervisor->server_timeout_seconds - idle_seconds_elapsed) * 1000;
+
+                if (remaining_ms <= 0)
+                    break;
+
+                if (remaining_ms < poll_timeout_ms)
+                    poll_timeout_ms = remaining_ms;
+            }
+
+            struct pollfd poll_file_descriptor;
+
+            poll_file_descriptor.fd = hypervisor->server_socket_file_descriptor;
+            poll_file_descriptor.events = POLLIN;
+            poll_file_descriptor.revents = 0;
+
+            int ret = poll(&poll_file_descriptor, 1, poll_timeout_ms);
+
+            if (!keep_running)
+                break;
+
+            if (ret == 0)
+            {
+                idle_seconds_elapsed += (poll_timeout_ms / 1000);
+
+                if (hypervisor->server_timeout_seconds > 0 &&
+                    idle_seconds_elapsed >= hypervisor->server_timeout_seconds)
+                {
+                    break;
+                }
+
+                fprintf(stdout,
+                        "No VM running, waiting for incoming VM migration on port %d...\n",
+                        hypervisor->server_port);
+                fflush(stdout);
+                continue;
+            }
+
+            if (ret > 0 && (poll_file_descriptor.revents & POLLIN))
+            {
+                receive_migrated_node(hypervisor);
+                idle_seconds_elapsed = 0;
+            }
+        }
+        else
+            idle_seconds_elapsed = 0;
+
+        // Promote pending to running nodes.
+        if (hypervisor->pending_head != NULL)
+        {
+            transfer_pending_to_running(hypervisor);
+
+            if (hypervisor->current_node == NULL)
+            {
+                hypervisor->current_node = hypervisor->head_node;
+                debug_node(hypervisor);
+            }
+        }
+
+        // End VMM in Standalone Mode.
+        if (hypervisor->head_node == NULL)
+        {
+            if (hypervisor->server_socket_file_descriptor < 0)
+                return true;
+
+            continue;
+        }
+
+        // Run current VM.
+        if (!run_node(hypervisor))
+            return false;
+
+        // Context switch to next VM.
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+        {
+            Node* finished_node = hypervisor->current_node;
+
+            switch_node(hypervisor);
+            drop_node(hypervisor, finished_node);
+        }
+        else
+            switch_node(hypervisor);
+
+        // Receive migration requests.
+        if (hypervisor->server_socket_file_descriptor >= 0)
+            check_and_receive_migration(hypervisor, 0);
+    }
+
+    return true;
 }
 
 static void teardown_hypervisor_patterns(Patterns* patterns)
@@ -1439,6 +1900,13 @@ static void teardown_hypervisor_patterns(Patterns* patterns)
         regfree(&patterns->skip_instructions.pattern);
         patterns->skip_instructions.groups = 0;
         patterns->skip_instructions.is_initialized = false;
+    }
+
+    if (patterns->migrate.is_initialized)
+    {
+        regfree(&patterns->migrate.pattern);
+        patterns->migrate.groups = 0;
+        patterns->migrate.is_initialized = false;
     }
 }
 
@@ -1618,6 +2086,13 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->skip_instructions.groups = 1;
     patterns->skip_instructions.is_initialized = true;
 
+    if (regcomp(&patterns->migrate.pattern,
+                "^[[:space:]]*MIGRATE[[:space:]]+([a-zA-Z0-9\\.-]+):([0-9]+)[[:space:]]*$",
+                REG_EXTENDED) != 0)
+        return fail_setup_hypervisor_pattern("migrate", patterns);
+    patterns->migrate.groups = 2;
+    patterns->migrate.is_initialized = true;
+
     return true;
 }
 
@@ -1651,14 +2126,65 @@ static void teardown_hypervisor(Hypervisor* hypervisor)
         pending_node = next;
     }
 
-    if (hypervisor->server_socket_fd >= 0)
+    if (hypervisor->server_socket_file_descriptor >= 0)
     {
-        close(hypervisor->server_socket_fd);
-        hypervisor->server_socket_fd = -1;
+        close(hypervisor->server_socket_file_descriptor);
+        hypervisor->server_socket_file_descriptor = -1;
     }
 
     memset(hypervisor, 0, sizeof(Hypervisor));
     free(hypervisor);
+}
+
+static bool setup_server_socket(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->server_port <= 0)
+        return true;
+
+    int server_file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (server_file_descriptor < 0)
+    {
+        fprintf(stderr, "Error: Failed to create server socket.\n");
+        return false;
+    }
+
+    const int reuseaddr_val = true;
+
+    if (setsockopt(server_file_descriptor, SOL_SOCKET, SO_REUSEADDR, &reuseaddr_val, sizeof(reuseaddr_val)) < 0)
+    {
+        fprintf(stderr, "Error: setsockopt failed on server socket.\n");
+        close(server_file_descriptor);
+        return false;
+    }
+
+    struct sockaddr_in server_addr;
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_port = htons((uint16_t)hypervisor->server_port);
+
+    if (bind(server_file_descriptor, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0)
+    {
+        fprintf(stderr, "Error: Failed to bind server socket to port %d.\n", hypervisor->server_port);
+        close(server_file_descriptor);
+        return false;
+    }
+
+    if (listen(server_file_descriptor, 10) < 0)
+    {
+        fprintf(stderr, "Error: Failed to listen on server socket on port %d.\n", hypervisor->server_port);
+        close(server_file_descriptor);
+        return false;
+    }
+
+    hypervisor->server_socket_file_descriptor = server_file_descriptor;
+    debug("Server listening on port %d (file_descriptor %d)\n",
+          hypervisor->server_port,
+          hypervisor->server_socket_file_descriptor);
+
+    return true;
 }
 
 static Hypervisor* setup_hypervisor(int argc, char* argv[])
@@ -1679,19 +2205,21 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
 
     hypervisor->current_node = NULL;
     hypervisor->server_port = -1;
-    hypervisor->server_socket_fd = -1;
+    hypervisor->server_socket_file_descriptor = -1;
+    hypervisor->server_timeout_seconds = -1;
 
     int opt = 0;
 
     /*
      * Options:
-     * -v <file> : Virtual machine configuration file
-     * -s <file> : Snapshot file to restore
-     * -p <port> : Migration server port (unprivileged: 1024-65535)
-     * -d        : Enable debug logging
+     * -v <file>    : Virtual machine configuration file
+     * -s <file>    : Snapshot file to restore
+     * -p <port>    : Migration server port (unprivileged: 1024-65535)
+     * -t <seconds> : Server idle timeout in seconds (optional)
+     * -d           : Enable debug logging
      */
     /* Flawfinder: ignore - args are validated */
-    while ((opt = getopt(argc, argv, "v:s:p:d")) != -1)
+    while ((opt = getopt(argc, argv, "v:s:p:t:d")) != -1)
     {
         switch (opt)
         {
@@ -1699,6 +2227,24 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
             debug_enabled = true;
             debug("Debug enabled.\n");
             break;
+        case 't':
+            {
+                char* endptr = NULL;
+                const long timeout = strtol(optarg, &endptr, 10);
+
+                if (endptr == optarg || *endptr != '\0' || timeout <= 0)
+                {
+                    fprintf(stderr,
+                            "Error: Invalid timeout \"%s\". Timeout must be a positive integer.\n",
+                            optarg);
+                    teardown_hypervisor(hypervisor);
+                    return NULL;
+                }
+
+                hypervisor->server_timeout_seconds = (int)timeout;
+                debug("Server timeout = %d seconds\n", hypervisor->server_timeout_seconds);
+                break;
+            }
         case 'p':
             {
                 char* endptr = NULL;
@@ -1763,6 +2309,15 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
 
     restore_pending_snapshots(hypervisor);
 
+    if (hypervisor->server_port > 0)
+    {
+        if (!setup_server_socket(hypervisor))
+        {
+            teardown_hypervisor(hypervisor);
+            return NULL;
+        }
+    }
+
     return hypervisor;
 }
 
@@ -1788,6 +2343,10 @@ static bool validate_args(int argc, char* argv[])
 
 int main(const int argc, char* argv[])
 {
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+    signal(SIGPIPE, SIG_IGN);
+
     if (!validate_args(argc, argv))
         return 1;
 
