@@ -2,6 +2,7 @@
 [0m[0;33mDebug: Node = "tests/skip_instructions_exceeded_assembly_file"
 [0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/skip_instructions_exceeded_assembly_file"
 [0m[0;33mDebug: NodeConfig->vm_binary = "tests/skip_instructions_exceeded_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/skip_instructions_exceeded_instructions"
 [0m[0;33mDebug: NodeConfig->snapshot_file = "tests/skip_instructions_exceeded_snapshot"
 [0m[0;33mDebug: Restoring node from "tests/skip_instructions_exceeded_snapshot"
 [0m[0;33mDebug: Validating snapshot "tests/skip_instructions_exceeded_snapshot"
@@ -39,6 +40,8 @@
 [0m[0;33mDebug: NodeProcessor->registers[31] = 0
 [0m[0;33mDebug: NodeProcessor->registers[32] = 0
 [0m[0;33mDebug: NodeProcessor->registers[33] = 0
+[0m[0;33mDebug: Transferring pending node "tests/skip_instructions_exceeded_instructions" to running list
 [0m[0;33mDebug: Hypervisor->current_node = "tests/skip_instructions_exceeded_instructions"
 [0m[0;33mDebug: Hypervisor->current_node = "tests/skip_instructions_exceeded_instructions"
+[0m[0;33mDebug: Dropping node "tests/skip_instructions_exceeded_instructions"
 [0m

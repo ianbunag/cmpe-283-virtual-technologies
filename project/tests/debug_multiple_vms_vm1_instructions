@@ -1,0 +1,2 @@
+li $1,10
+DUMP_REGISTER_STATE $1

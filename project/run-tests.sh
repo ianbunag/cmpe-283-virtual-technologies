@@ -11,6 +11,7 @@ set -euo pipefail
 
 # It should be configurable
 ./run-test.sh "$@" "it_should_print_debug_statements" ./myvmm -d -v tests/debug_assembly_file
+./run-test.sh "$@" "it_should_print_debug_statements_for_multiple_vms" ./myvmm -d -v tests/debug_multiple_vms_vm1_assembly_file -v tests/debug_multiple_vms_vm2_assembly_file
 
 # It should handle configuration errors
 ./run-test.sh "$@" "it_should_exit_on_no_argument" ./myvmm

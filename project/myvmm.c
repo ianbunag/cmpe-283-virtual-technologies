@@ -207,8 +207,9 @@ typedef struct Hypervisor
 {
     Node* head_node;
     Node* current_node;
+    Node* pending_head;
     Patterns patterns;
-    unsigned int active_nodes;
+    unsigned int node_count;
 } Hypervisor;
 
 static bool get_register_key(const char* raw_key, int8_t* key)
@@ -746,50 +747,6 @@ static bool run_node(Hypervisor* hypervisor)
     return !has_error;
 }
 
-static void debug_node(Hypervisor* hypervisor)
-{
-    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
-}
-
-static void switch_node(Hypervisor* hypervisor)
-{
-    hypervisor->current_node = (hypervisor->current_node->next != NULL)
-                                   ? hypervisor->current_node->next
-                                   : hypervisor->head_node;
-
-    debug_node(hypervisor);
-}
-
-static bool run_hypervisor(Hypervisor* hypervisor)
-{
-    if (hypervisor == NULL)
-        return false;
-
-    if (hypervisor->head_node == NULL)
-        return true;
-
-    debug_node(hypervisor);
-
-    while (hypervisor->active_nodes > 0)
-    {
-        if (!hypervisor->current_node->socket.has_pending_instructions)
-        {
-            switch_node(hypervisor);
-            continue;
-        }
-
-        if (!run_node(hypervisor))
-            return false;
-
-        if (!hypervisor->current_node->socket.has_pending_instructions)
-            hypervisor->active_nodes -= 1;
-
-        switch_node(hypervisor);
-    }
-
-    return true;
-}
-
 static void reset_node_processor(NodeProcessor* processor)
 {
     if (processor == NULL)
@@ -952,13 +909,13 @@ static void teardown_node(Node* node)
     free(node);
 }
 
-static void drop_node(Hypervisor* hypervisor, Node* target_node)
+static bool unlink_node(Node** head_ref, Node* target_node)
 {
-    if (hypervisor == NULL || target_node == NULL)
-        return;
+    if (head_ref == NULL || *head_ref == NULL || target_node == NULL)
+        return false;
 
     Node* prev = NULL;
-    Node* current = hypervisor->head_node;
+    Node* current = *head_ref;
 
     while (current != NULL && current != target_node)
     {
@@ -968,16 +925,148 @@ static void drop_node(Hypervisor* hypervisor, Node* target_node)
 
     if (current == target_node)
     {
-        debug("Dropping node \"%s\"\n", target_node->config.vm_binary);
-
         if (prev == NULL)
-            hypervisor->head_node = target_node->next;
+            *head_ref = target_node->next;
         else
             prev->next = target_node->next;
 
-        hypervisor->active_nodes -= 1;
+        target_node->next = NULL;
+        return true;
+    }
+
+    return false;
+}
+
+static void drop_node(Hypervisor* hypervisor, Node* target_node)
+{
+    if (hypervisor == NULL || target_node == NULL)
+        return;
+
+    bool was_unlinked = unlink_node(&hypervisor->head_node, target_node);
+
+    if (!was_unlinked)
+        was_unlinked = unlink_node(&hypervisor->pending_head, target_node);
+
+    if (was_unlinked)
+    {
+        debug("Dropping node \"%s\"\n", target_node->config.vm_binary);
+        hypervisor->node_count -= 1;
         teardown_node(target_node);
     }
+
+    if (hypervisor->head_node == NULL)
+        hypervisor->current_node = NULL;
+}
+
+static void enqueue_pending_node(Hypervisor* hypervisor, Node* node)
+{
+    if (hypervisor == NULL || node == NULL)
+        return;
+
+    debug("Enqueuing pending node \"%s\"\n",
+          (node->config.vm_binary != NULL) ? node->config.vm_binary : "unknown");
+
+    hypervisor->node_count += 1;
+    node->next = NULL;
+
+    if (hypervisor->pending_head == NULL)
+    {
+        hypervisor->pending_head = node;
+        return;
+    }
+
+    Node* current = hypervisor->pending_head;
+
+    while (current->next != NULL)
+        current = current->next;
+
+    current->next = node;
+}
+
+static void transfer_pending_to_running(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL || hypervisor->pending_head == NULL)
+        return;
+
+    Node* current = hypervisor->pending_head;
+
+    while (current != NULL)
+    {
+        debug("Transferring pending node \"%s\" to running list\n",
+              (current->config.vm_binary != NULL) ? current->config.vm_binary : "unknown");
+        current = current->next;
+    }
+
+    if (hypervisor->head_node == NULL)
+        hypervisor->head_node = hypervisor->pending_head;
+    else
+    {
+        Node* tail = hypervisor->head_node;
+
+        while (tail->next != NULL)
+            tail = tail->next;
+
+        tail->next = hypervisor->pending_head;
+    }
+
+    hypervisor->pending_head = NULL;
+}
+
+static void debug_node(Hypervisor* hypervisor)
+{
+    debug("Hypervisor->current_node = \"%s\"\n", hypervisor->current_node->config.vm_binary);
+}
+
+static void switch_node(Hypervisor* hypervisor)
+{
+    hypervisor->current_node = (hypervisor->current_node->next != NULL)
+                                   ? hypervisor->current_node->next
+                                   : hypervisor->head_node;
+
+    debug_node(hypervisor);
+}
+
+static bool run_hypervisor(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL)
+        return false;
+
+    if (hypervisor->head_node == NULL && hypervisor->pending_head != NULL)
+    {
+        transfer_pending_to_running(hypervisor);
+        hypervisor->current_node = hypervisor->head_node;
+    }
+
+    if (hypervisor->head_node == NULL)
+        return true;
+
+    debug_node(hypervisor);
+
+    while (hypervisor->node_count > 0)
+    {
+        if (!run_node(hypervisor))
+            return false;
+
+        if (!hypervisor->current_node->socket.has_pending_instructions)
+        {
+            Node* finished_node = hypervisor->current_node;
+
+            switch_node(hypervisor);
+            drop_node(hypervisor, finished_node);
+
+            if (hypervisor->head_node == NULL && hypervisor->pending_head != NULL)
+            {
+                transfer_pending_to_running(hypervisor);
+                hypervisor->current_node = hypervisor->head_node;
+            }
+
+            continue;
+        }
+
+        switch_node(hypervisor);
+    }
+
+    return true;
 }
 
 static bool validate_snapshot(FILE* snapshot_file, const Node* node, const Patterns* patterns)
@@ -1118,6 +1207,43 @@ static bool restore_node(Hypervisor* hypervisor)
         free(line);
 
     return !has_error;
+}
+
+static bool restore_node_snapshot(Hypervisor* hypervisor, Node* node)
+{
+    if (hypervisor == NULL || node == NULL)
+        return false;
+
+    if (node->config.snapshot_file == NULL)
+        return true;
+
+    hypervisor->current_node = node;
+
+    if (!restore_node(hypervisor))
+    {
+        drop_node(hypervisor, node);
+        return false;
+    }
+
+    return true;
+}
+
+static void restore_pending_snapshots(Hypervisor* hypervisor)
+{
+    if (hypervisor == NULL)
+        return;
+
+    Node* current = hypervisor->pending_head;
+
+    while (current != NULL)
+    {
+        Node* next = current->next;
+
+        restore_node_snapshot(hypervisor, current);
+        current = next;
+    }
+
+    hypervisor->current_node = hypervisor->pending_head;
 }
 
 static Node* setup_node(char* assembly_file_name, const Patterns* patterns)
@@ -1502,13 +1628,25 @@ static void teardown_hypervisor(Hypervisor* hypervisor)
 
     Node* current_node = hypervisor->head_node;
     hypervisor->head_node = NULL;
-    hypervisor->active_nodes = 0;
+    hypervisor->node_count = 0;
 
     while (current_node != NULL)
     {
         Node* next = current_node->next;
         teardown_node(current_node);
         current_node = next;
+    }
+
+    Node* pending_node = hypervisor->pending_head;
+
+    hypervisor->pending_head = NULL;
+
+    while (pending_node != NULL)
+    {
+        Node* next = pending_node->next;
+
+        teardown_node(pending_node);
+        pending_node = next;
     }
 
     memset(hypervisor, 0, sizeof(Hypervisor));
@@ -1579,12 +1717,7 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
                     return NULL;
                 }
 
-                if (hypervisor->head_node == NULL)
-                    hypervisor->head_node = node;
-                else
-                    hypervisor->current_node->next = node;
-
-                hypervisor->active_nodes += 1;
+                enqueue_pending_node(hypervisor, node);
                 hypervisor->current_node = node;
                 break;
             }
@@ -1593,24 +1726,7 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
         }
     }
 
-    Node* current = hypervisor->head_node;
-
-    while (current != NULL)
-    {
-        Node* next = current->next;
-
-        if (current->config.snapshot_file != NULL)
-        {
-            hypervisor->current_node = current;
-
-            if (!restore_node(hypervisor))
-                drop_node(hypervisor, current);
-        }
-
-        current = next;
-    }
-
-    hypervisor->current_node = hypervisor->head_node;
+    restore_pending_snapshots(hypervisor);
 
     return hypervisor;
 }

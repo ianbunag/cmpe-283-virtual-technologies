@@ -1,0 +1,24 @@
+[0;33mDebug: Debug enabled.
+[0m[0;33mDebug: Node = "tests/debug_multiple_vms_vm1_assembly_file"
+[0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/debug_multiple_vms_vm1_assembly_file"
+[0m[0;33mDebug: NodeConfig->vm_binary = "tests/debug_multiple_vms_vm1_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/debug_multiple_vms_vm1_instructions"
+[0m[0;33mDebug: Node = "tests/debug_multiple_vms_vm2_assembly_file"
+[0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/debug_multiple_vms_vm2_assembly_file"
+[0m[0;33mDebug: NodeConfig->vm_binary = "tests/debug_multiple_vms_vm2_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/debug_multiple_vms_vm2_instructions"
+[0m[0;33mDebug: Transferring pending node "tests/debug_multiple_vms_vm1_instructions" to running list
+[0m[0;33mDebug: Transferring pending node "tests/debug_multiple_vms_vm2_instructions" to running list
+[0m[0;33mDebug: Hypervisor->current_node = "tests/debug_multiple_vms_vm1_instructions"
+[0m[0;33mDebug: Running instruction "li $1,10"
+[0m[0;33mDebug: NodeProcessor->registers[1] = 10
+[0m[0;33mDebug: Running instruction "DUMP_REGISTER_STATE $1"
+[0m[0;33mDebug: Hypervisor->current_node = "tests/debug_multiple_vms_vm2_instructions"
+[0m[0;33mDebug: Dropping node "tests/debug_multiple_vms_vm1_instructions"
+[0m[0;33mDebug: Running instruction "li $2,20"
+[0m[0;33mDebug: NodeProcessor->registers[2] = 20
+[0m[0;33mDebug: Running instruction "DUMP_REGISTER_STATE $2"
+[0m[0;33mDebug: Hypervisor->current_node = "tests/debug_multiple_vms_vm2_instructions"
+[0m[0;33mDebug: Dropping node "tests/debug_multiple_vms_vm2_instructions"
+[0mR1=10
+R2=20

@@ -2,12 +2,14 @@
 [0m[0;33mDebug: Node = "tests/snapshot_mutations_assembly_file"
 [0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/snapshot_mutations_assembly_file"
 [0m[0;33mDebug: NodeConfig->vm_binary = "tests/snapshot_mutations_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/snapshot_mutations_instructions"
 [0m[0;33mDebug: NodeConfig->snapshot_file = "tests/snapshot_mutations_snapshot"
 [0m[0;33mDebug: Restoring node from "tests/snapshot_mutations_snapshot"
 [0m[0;33mDebug: Validating snapshot "tests/snapshot_mutations_snapshot"
 [0m[0;33mDebug: Skipping 3 instructions
 [0m[0;33mDebug: NodeProcessor->registers[1] = 10
 [0m[0;33mDebug: NodeProcessor->registers[2] = 20
+[0m[0;33mDebug: Transferring pending node "tests/snapshot_mutations_instructions" to running list
 [0m[0;33mDebug: Hypervisor->current_node = "tests/snapshot_mutations_instructions"
 [0m[0;33mDebug: Running instruction "li $3,100"
 [0m[0;33mDebug: NodeProcessor->registers[3] = 100
@@ -15,6 +17,7 @@
 [0m[0;33mDebug: NodeProcessor->registers[4] = 200
 [0m[0;33mDebug: Running instruction "DUMP_PROCESSOR_STATE"
 [0m[0;33mDebug: Hypervisor->current_node = "tests/snapshot_mutations_instructions"
+[0m[0;33mDebug: Dropping node "tests/snapshot_mutations_instructions"
 [0mR0=0
 R1=10
 R2=20

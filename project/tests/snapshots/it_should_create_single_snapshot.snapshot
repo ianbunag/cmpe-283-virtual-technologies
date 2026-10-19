@@ -2,6 +2,8 @@
 [0m[0;33mDebug: Node = "tests/single_snapshot_assembly_file"
 [0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/single_snapshot_assembly_file"
 [0m[0;33mDebug: NodeConfig->vm_binary = "tests/single_snapshot_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/single_snapshot_instructions"
+[0m[0;33mDebug: Transferring pending node "tests/single_snapshot_instructions" to running list
 [0m[0;33mDebug: Hypervisor->current_node = "tests/single_snapshot_instructions"
 [0m[0;33mDebug: Running instruction "li $1,1"
 [0m[0;33mDebug: NodeProcessor->registers[1] = 1
@@ -74,6 +76,7 @@
 [0m[0;33mDebug: Taking snapshot "tests/single_snapshot_snapshot"
 [0m[0;33mDebug: Running instruction "DUMP_PROCESSOR_STATE"
 [0m[0;33mDebug: Hypervisor->current_node = "tests/single_snapshot_instructions"
+[0m[0;33mDebug: Dropping node "tests/single_snapshot_instructions"
 [0mR0=0
 R1=1
 R2=2
