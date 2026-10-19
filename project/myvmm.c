@@ -849,8 +849,10 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
     }
 
     int client_file_descriptor = -1;
+    useconds_t retry_delay_us = 25000;
 
-    for (int attempt = 0; attempt < 20; attempt++)
+    // Retry with backoff (25ms, 50ms, 100ms, 200ms, and 400ms)
+    for (int attempt = 0; attempt < 6; attempt++)
     {
         for (struct addrinfo* rp = res; rp != NULL; rp = rp->ai_next)
         {
@@ -869,14 +871,20 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
         if (client_file_descriptor >= 0)
             break;
 
-        usleep(50000);
+        if (attempt < 5)
+        {
+            usleep(retry_delay_us);
+            retry_delay_us *= 2;
+        }
     }
 
     freeaddrinfo(res);
 
     if (client_file_descriptor < 0)
     {
-        fprintf(stderr, "Error: Failed to connect to migration target \"%s:%s\".\n", host, port_str);
+        fprintf(stderr,
+                "Error: Failed to connect to migration target \"%s:%s\". Aborting migration and resuming local execution.\n",
+                host, port_str);
         unlink(snap_path);
         return;
     }
