@@ -21,6 +21,9 @@ set -euo pipefail
 ./run-test.sh "$@" "it_should_fail_on_empty_vm_binary" ./myvmm -v tests/empty_vm_binary_assembly_file
 ./run-test.sh "$@" "it_should_fail_on_non_existent_vm_binary" ./myvmm -v tests/non_existent_vm_binary_assembly_file
 ./run-test.sh "$@" "it_should_fail_on_non_existent_succeeding_vm_binary" ./myvmm -v tests/noop_assembly_file -v tests/non_existent_vm_binary_assembly_file
+./run-test.sh "$@" "it_should_fail_on_privileged_port" ./myvmm -p 80
+./run-test.sh "$@" "it_should_fail_on_out_of_range_port" ./myvmm -p 70000
+./run-test.sh "$@" "it_should_fail_on_non_numeric_port" ./myvmm -p abc
 
 # It should support configuration quirks
 ./run-test.sh "$@" "it_should_parse_spaced_vm_file" ./myvmm -v tests/spaced_assembly_file

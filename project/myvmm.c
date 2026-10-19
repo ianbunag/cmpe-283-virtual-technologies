@@ -210,6 +210,8 @@ typedef struct Hypervisor
     Node* pending_head;
     Patterns patterns;
     unsigned int node_count;
+    int server_port;
+    int server_socket_fd;
 } Hypervisor;
 
 static bool get_register_key(const char* raw_key, int8_t* key)
@@ -1649,6 +1651,12 @@ static void teardown_hypervisor(Hypervisor* hypervisor)
         pending_node = next;
     }
 
+    if (hypervisor->server_socket_fd >= 0)
+    {
+        close(hypervisor->server_socket_fd);
+        hypervisor->server_socket_fd = -1;
+    }
+
     memset(hypervisor, 0, sizeof(Hypervisor));
     free(hypervisor);
 }
@@ -1670,11 +1678,20 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
     }
 
     hypervisor->current_node = NULL;
+    hypervisor->server_port = -1;
+    hypervisor->server_socket_fd = -1;
 
     int opt = 0;
 
+    /*
+     * Options:
+     * -v <file> : Virtual machine configuration file
+     * -s <file> : Snapshot file to restore
+     * -p <port> : Migration server port (unprivileged: 1024-65535)
+     * -d        : Enable debug logging
+     */
     /* Flawfinder: ignore - args are validated */
-    while ((opt = getopt(argc, argv, "v:s:d")) != -1)
+    while ((opt = getopt(argc, argv, "v:s:p:d")) != -1)
     {
         switch (opt)
         {
@@ -1682,6 +1699,24 @@ static Hypervisor* setup_hypervisor(int argc, char* argv[])
             debug_enabled = true;
             debug("Debug enabled.\n");
             break;
+        case 'p':
+            {
+                char* endptr = NULL;
+                const long port = strtol(optarg, &endptr, 10);
+
+                if (endptr == optarg || *endptr != '\0' || port < 1024 || port > 65535)
+                {
+                    fprintf(stderr,
+                            "Error: Invalid port \"%s\". Only unprivileged ports (1024-65535) are supported.\n",
+                            optarg);
+                    teardown_hypervisor(hypervisor);
+                    return NULL;
+                }
+
+                hypervisor->server_port = (int)port;
+                debug("Server port = %d\n", hypervisor->server_port);
+                break;
+            }
         case 's':
             debug("NodeConfig->snapshot_file = \"%s\"\n", optarg);
 
