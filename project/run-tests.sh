@@ -150,4 +150,11 @@ run_test_async "$@" "it_should_send_cross_process_migration" ./myvmm -v tests/cr
 run_test_async "$@" "it_should_round_trip_migrate_vm_a" ./myvmm -p 9901 -t 3 -v tests/round_trip_vm_a_assembly_file
 run_test_async "$@" "it_should_round_trip_migrate_vm_b" ./myvmm -p 9902 -t 3 -v tests/round_trip_vm_b_assembly_file
 
+./myvmm -p 9990 -t 5 >/dev/null 2>&1 &
+COLLISION_SERVER_PID=$!
+sleep 0.5
+run_test_async "$@" "it_should_fail_on_server_port_collision" ./myvmm -p 9990
+
 wait_for_async_tests
+kill "$COLLISION_SERVER_PID" 2>/dev/null || true
+wait "$COLLISION_SERVER_PID" 2>/dev/null || true
