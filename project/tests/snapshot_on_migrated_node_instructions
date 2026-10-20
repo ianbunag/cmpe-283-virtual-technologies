@@ -1,0 +1,7 @@
+li $1,10
+li $2,20
+add $3,$1,$2
+MIGRATE 127.0.0.1:9096
+addi $3,$3,12
+SNAPSHOT tests/snapshot_on_migrated_node_snapshot
+DUMP_REGISTER_STATE $3
