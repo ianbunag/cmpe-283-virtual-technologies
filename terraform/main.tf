@@ -28,6 +28,19 @@ resource "google_compute_firewall" "vm_ssh" {
   target_service_accounts = [google_service_account.vm.email]
 }
 
+resource "google_compute_firewall" "vm_migration" {
+  name    = "${local.slug}-allow-migration"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9089"]
+  }
+
+  source_ranges           = ["0.0.0.0/0"]
+  target_service_accounts = [google_service_account.vm.email]
+}
+
 resource "google_secret_manager_secret_iam_member" "vm_secrets" {
   for_each = toset([
     var.cloudflare_update_dns_token_secret_name,

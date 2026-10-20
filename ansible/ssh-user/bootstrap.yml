@@ -23,3 +23,12 @@
     - 'alias history="history 1"'
     - 'alias h="history"'
     - 'alias g="git"'
+
+- name: Configure environment variables in shell
+  lineinfile:
+    path: "/home/{{ ssh_username }}/.bashrc"
+    line: "export MIGRATION_DOMAIN=\"{{ domain }}\""
+    regexp: "^export MIGRATION_DOMAIN="
+    state: present
+    create: yes
+    mode: "0644"
