@@ -12,6 +12,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <signal.h>
+#include <time.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
@@ -829,6 +830,7 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
         return;
     }
 
+    /* Flawfinder: ignore - fixed buffer size for snapshot path */
     char snap_path[MAX_LINE_LEN];
 
     snprintf(snap_path, sizeof(snap_path), "/tmp/myvmm_snap_%ld_%u", port, tx_counter++);
@@ -851,9 +853,9 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
     }
 
     int client_file_descriptor = -1;
-    useconds_t retry_delay_us = 25000;
+    struct timespec retry_delay = {0, 25000000L};
 
-    // Retry with backoff (25ms, 50ms, 100ms, 200ms, and 400ms)
+    // Retry with backoff (25ms, 50ms, 100ms, 200ms, and 400ms).
     for (int attempt = 0; attempt < 6; attempt++)
     {
         for (struct addrinfo* rp = res; rp != NULL; rp = rp->ai_next)
@@ -875,8 +877,8 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
 
         if (attempt < 5)
         {
-            usleep(retry_delay_us);
-            retry_delay_us *= 2;
+            nanosleep(&retry_delay, NULL);
+            retry_delay.tv_nsec *= 2;
         }
     }
 
@@ -1520,9 +1522,13 @@ static bool receive_migrated_node(Hypervisor* hypervisor)
     if (client_file_descriptor < 0)
         return false;
 
+    /* Flawfinder: ignore - fixed buffer size for temporary file path */
     char raw_cfg_path[MAX_LINE_LEN];
+    /* Flawfinder: ignore - fixed buffer size for temporary file path */
     char instr_path[MAX_LINE_LEN];
+    /* Flawfinder: ignore - fixed buffer size for temporary file path */
     char snap_path[MAX_LINE_LEN];
+    /* Flawfinder: ignore - fixed buffer size for temporary file path */
     char cfg_path[MAX_LINE_LEN];
 
     snprintf(raw_cfg_path, sizeof(raw_cfg_path), "%sraw_%d_%u", received_file_prefix, hypervisor->server_port,
