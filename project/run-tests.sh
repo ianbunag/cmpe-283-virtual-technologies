@@ -139,6 +139,7 @@ run_test_async "$@" "it_should_timeout_when_no_migration_received" ./myvmm -p 90
 run_test_async "$@" "it_should_support_self_migration_with_multiple_vms" ./myvmm -p 9093 -t 1 -v tests/self_migration_vm1_assembly_file -v tests/self_migration_vm2_assembly_file
 run_test_async "$@" "it_should_support_multiple_migrations_in_same_instruction_file" ./myvmm -p 9094 -t 1 -v tests/multiple_self_migrations_assembly_file
 run_test_async "$@" "it_should_resume_local_execution_on_migration_failure" ./myvmm -v tests/migration_failure_fallback_assembly_file
+run_test_async "$@" "it_should_resume_local_execution_on_unresolvable_migration_host" ./myvmm -v tests/migration_unresolvable_host_assembly_file
 run_test_async "$@" "it_should_support_snapshot_before_and_after_migration" ./myvmm -p 9095 -t 1 -v tests/snapshot_migration_interleaved_assembly_file
 run_test_async "$@" "it_should_create_snapshot_on_migrated_node" ./myvmm -p 9096 -t 1 -v tests/snapshot_on_migrated_node_assembly_file
 run_test_async "$@" "it_should_restore_snapshot_created_on_migrated_node" ./myvmm -v tests/snapshot_on_migrated_node_assembly_file -s tests/snapshot_on_migrated_node_snapshot

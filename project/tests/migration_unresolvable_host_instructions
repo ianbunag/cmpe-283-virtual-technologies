@@ -1,0 +1,5 @@
+li $1,10
+DUMP_REGISTER_STATE $1
+MIGRATE non.existent.host.invalid:9090
+addi $1,$1,5
+DUMP_REGISTER_STATE $1

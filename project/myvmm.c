@@ -843,7 +843,9 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
 
     if (getaddrinfo(host, port_str, &hints, &res) != 0 || res == NULL)
     {
-        fprintf(stderr, "Error: Failed to resolve migration target \"%s:%s\".\n", host, port_str);
+        fprintf(stderr,
+                "Error: Failed to resolve migration target \"%s:%s\". Aborting migration and resuming local execution.\n",
+                host, port_str);
         unlink(snap_path);
         return;
     }
