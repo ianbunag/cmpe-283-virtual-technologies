@@ -1,0 +1,7 @@
+li $1,10
+SNAPSHOT tests/snapshot_migration_interleaved_first_snapshot
+DUMP_REGISTER_STATE $1
+MIGRATE 127.0.0.1:9095
+addi $1,$1,20
+SNAPSHOT tests/snapshot_migration_interleaved_second_snapshot
+DUMP_REGISTER_STATE $1
