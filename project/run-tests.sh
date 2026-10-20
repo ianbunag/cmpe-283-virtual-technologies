@@ -6,13 +6,20 @@ set -euo pipefail
 
 BACKGROUND_PIDS=()
 BACKGROUND_LOGS=()
+COLLISION_SERVER_PID=""
 
-cleanup_async_logs() {
+cleanup() {
     for log_file in "${BACKGROUND_LOGS[@]}"; do
         rm -f "$log_file"
     done
+
+    if [[ -n "${COLLISION_SERVER_PID:-}" ]]; then
+        kill "$COLLISION_SERVER_PID" 2>/dev/null || true
+        wait "$COLLISION_SERVER_PID" 2>/dev/null || true
+        COLLISION_SERVER_PID=""
+    fi
 }
-trap cleanup_async_logs EXIT
+trap cleanup EXIT
 
 run_test_async() {
     local log_file
@@ -44,16 +51,16 @@ wait_for_async_tests() {
     fi
 }
 
-# It should run example files
+# It should run example files.
 ./run-test.sh "$@" "it_should_run_assembly_file_vm1" ./myvmm -v assembly_file_vm1
 ./run-test.sh "$@" "it_should_run_assembly_file_vm2" ./myvmm -v assembly_file_vm2
 ./run-test.sh "$@" "it_should_run_assembly_file_vm1_and_vm2" ./myvmm -v assembly_file_vm1 -v assembly_file_vm2
 
-# It should be configurable
+# It should be configurable.
 ./run-test.sh "$@" "it_should_print_debug_statements" ./myvmm -d -v tests/debug_assembly_file
 ./run-test.sh "$@" "it_should_print_debug_statements_for_multiple_vms" ./myvmm -d -v tests/debug_multiple_vms_vm1_assembly_file -v tests/debug_multiple_vms_vm2_assembly_file
 
-# It should handle configuration errors
+# It should handle configuration errors.
 ./run-test.sh "$@" "it_should_exit_on_no_argument" ./myvmm
 ./run-test.sh "$@" "it_should_fail_on_too_long_argument" ./myvmm -v "$(printf '%*s' -4097 '' | tr ' ' 'A')"
 ./run-test.sh "$@" "it_should_fail_on_non_existent_assembly_file" ./myvmm -v tests/non_existent_assembly_file
@@ -71,7 +78,7 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_fail_on_non_numeric_timeout" ./myvmm -t abc
 
 
-# It should support configuration quirks
+# It should support configuration quirks.
 ./run-test.sh "$@" "it_should_parse_spaced_vm_file" ./myvmm -v tests/spaced_assembly_file
 ./run-test.sh "$@" "it_should_skip_blank_lines_between_instructions" ./myvmm -v tests/blank_lines_assembly_file
 ./run-test.sh "$@" "it_should_follow_last_of_duplicate_config" ./myvmm -v tests/duplicate_config_assembly_file
@@ -83,7 +90,7 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_follow_last_of_duplicate_snapshot" ./myvmm -v tests/duplicate_snapshot_assembly_file -s tests/duplicate_snapshot_first_snapshot -s tests/duplicate_snapshot_second_snapshot
 
 
-# It should support instructions
+# It should support instructions.
 ./run-test.sh "$@" "it_should_load_immediate" ./myvmm -v tests/load_immediate_assembly_file
 ./run-test.sh "$@" "it_should_add" ./myvmm -v tests/add_assembly_file
 ./run-test.sh "$@" "it_should_subtract" ./myvmm -v tests/subtract_assembly_file
@@ -102,11 +109,11 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_shift_right_logical" ./myvmm -v tests/shift_right_logical_assembly_file
 ./run-test.sh "$@" "it_should_xor" ./myvmm -v tests/xor_assembly_file
 
-# It should handle instruction errors
+# It should handle instruction errors.
 ./run-test.sh "$@" "it_should_ignore_out_of_bounds_register" ./myvmm -v tests/out_of_bounds_register_assembly_file
 ./run-test.sh "$@" "it_should_ignore_write_to_zero_register" ./myvmm -v tests/zero_register_assembly_file
 
-# It should support snapshots
+# It should support snapshots.
 ./run-test.sh "$@" "it_should_create_single_snapshot" ./myvmm -d -v tests/single_snapshot_assembly_file
 ./run-test.sh "$@" "it_should_restore_single_snapshot" ./myvmm -d -v tests/single_snapshot_assembly_file -s tests/single_snapshot_snapshot
 ./run-test.sh "$@" "it_should_create_snapshot_with_mutations" ./myvmm -d -v tests/snapshot_mutations_assembly_file
@@ -124,7 +131,7 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_restore_snapshots_for_multiple_vms" ./myvmm -v tests/multiple_vms_snapshot_vm1_assembly_file -s tests/multiple_vms_snapshot_vm1_snapshot -v tests/multiple_vms_snapshot_vm2_assembly_file -s tests/multiple_vms_snapshot_vm2_snapshot
 ./run-test.sh "$@" "it_should_warn_on_unknown_snapshot_instruction" ./myvmm -v tests/snapshot_unknown_instruction_assembly_file -s tests/snapshot_unknown_instruction_snapshot
 
-# It should handle snapshot errors
+# It should handle snapshot errors.
 ./run-test.sh "$@" "it_should_fail_on_non_existent_snapshot" ./myvmm -v tests/noop_assembly_file -s tests/non_existent_snapshot
 ./run-test.sh "$@" "it_should_fail_on_snapshot_flag_before_vm_flag" ./myvmm -s tests/non_existent_snapshot -v tests/noop_assembly_file -v tests/noop_assembly_file
 ./run-test.sh "$@" "it_should_fail_on_mismatched_snapshot_hash" ./myvmm -v tests/mismatched_hash_snapshot_assembly_file -s tests/mismatched_hash_snapshot_snapshot
@@ -135,7 +142,7 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_fail_on_validate_not_first_instruction" ./myvmm -v tests/validate_not_first_snapshot_assembly_file -s tests/validate_not_first_snapshot_snapshot
 ./run-test.sh "$@" "it_should_fail_on_create_snapshot_in_non_existent_directory" ./myvmm -v tests/non_existent_directory_snapshot_assembly_file
 
-# It should support live migration
+# It should support live migration.
 run_test_async "$@" "it_should_support_live_migration" ./myvmm -d -p 9090 -t 1 -v tests/live_migration_assembly_file
 run_test_async "$@" "it_should_timeout_when_no_migration_received" ./myvmm -p 9091 -t 6
 run_test_async "$@" "it_should_support_self_migration_with_multiple_vms" ./myvmm -p 9093 -t 1 -v tests/self_migration_vm1_assembly_file -v tests/self_migration_vm2_assembly_file
@@ -149,13 +156,13 @@ run_test_async "$@" "it_should_support_migration_as_first_instruction" ./myvmm -
 run_test_async "$@" "it_should_support_migration_as_final_instruction" ./myvmm -d -p 9098 -t 1 -v tests/final_instruction_migration_assembly_file
 run_test_async "$@" "it_should_migrate_already_restored_vm" ./myvmm -p 9099 -t 1 -v tests/snapshot_then_migrate_assembly_file -s tests/snapshot_then_migrate_initial_snapshot
 
-# It should support cross-process live migration
+# It should support cross-process live migration.
 run_test_async "$@" "it_should_receive_cross_process_migration" ./myvmm -p 9900 -t 2
 run_test_async "$@" "it_should_send_cross_process_migration" ./myvmm -v tests/cross_process_migration_assembly_file
 run_test_async "$@" "it_should_round_trip_migrate_vm_a" ./myvmm -p 9901 -t 3 -v tests/round_trip_vm_a_assembly_file
 run_test_async "$@" "it_should_round_trip_migrate_vm_b" ./myvmm -p 9902 -t 3 -v tests/round_trip_vm_b_assembly_file
 
-# It should support live url migration
+# It should support live url migration.
 MIGRATION_DOMAIN="${MIGRATION_DOMAIN:-cmpe-283.ianbunag.dev}"
 cat <<EOF > tests/live_url_migration_instructions
 li \$1,10
@@ -167,11 +174,11 @@ DUMP_REGISTER_STATE \$3
 EOF
 run_test_async "$@" "it_should_support_live_url_migration" ./myvmm -d -p 9089 -t 1 -v tests/live_url_migration_assembly_file
 
+# It should fail on server port collision.
 ./myvmm -p 9990 -t 5 >/dev/null 2>&1 &
 COLLISION_SERVER_PID=$!
 sleep 0.5
 run_test_async "$@" "it_should_fail_on_server_port_collision" ./myvmm -p 9990
 
+# Cleanup.
 wait_for_async_tests
-kill "$COLLISION_SERVER_PID" 2>/dev/null || true
-wait "$COLLISION_SERVER_PID" 2>/dev/null || true

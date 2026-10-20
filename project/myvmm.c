@@ -13,14 +13,16 @@
 #include <poll.h>
 #include <signal.h>
 #include <time.h>
+#include <fcntl.h>
 
 #define MAX_LINE_LEN 4096
 #define MAX_ARG_LEN 4096
 #define HASH_STR_LEN 9
+#define MAX_PAYLOAD_SIZE (50 * 1024 * 1024)
 #define COLOR_YELLOW "\033[0;33m"
 #define COLOR_RESET "\033[0m"
 
-static const char* received_file_prefix = "/tmp/myvmm_received_";
+static const char received_file_prefix[] = "/tmp/myvmm_received_";
 static const size_t received_file_prefix_length = sizeof(received_file_prefix) - 1;
 
 static bool debug_enabled = false;
@@ -776,12 +778,28 @@ static bool receive_file_payload(int socket_file_descriptor, const char* output_
 
     uint32_t len = ntohl(net_len);
 
-    /* Flawfinder: ignore - temporary file destination */
-    FILE* file = fopen(output_path, "wb");
+    if (len > MAX_PAYLOAD_SIZE)
+    {
+        fprintf(stderr, "Error: Payload size %u exceeds maximum allowed limit (%u bytes).\n", len, MAX_PAYLOAD_SIZE);
+        return false;
+    }
+
+    unlink(output_path);
+    /* Flawfinder: ignore - temporary file destination with exclusive creation */
+    int fd = open(output_path, O_CREAT | O_EXCL | O_WRONLY, 0600);
+
+    if (fd < 0)
+    {
+        fprintf(stderr, "Error: Failed to open output file \"%s\" for received migration.\n", output_path);
+        return false;
+    }
+
+    FILE* file = fdopen(fd, "wb");
 
     if (file == NULL)
     {
-        fprintf(stderr, "Error: Failed to open output file \"%s\" for received migration.\n", output_path);
+        close(fd);
+        unlink(output_path);
         return false;
     }
 
@@ -944,6 +962,7 @@ static bool run_node(const Hypervisor* hypervisor)
     bool has_error = false;
 
     while (
+        keep_running &&
         hypervisor->current_node->socket.has_pending_instructions &&
         (chars_read = getline(&line, &len, hypervisor->current_node->socket.file)) != -1)
     {
@@ -1558,17 +1577,34 @@ static bool receive_migrated_node(Hypervisor* hypervisor)
 
     /* Flawfinder: ignore - temporary file */
     FILE* raw_cfg = fopen(raw_cfg_path, "r");
-    /* Flawfinder: ignore - temporary file */
-    FILE* out_cfg = fopen(cfg_path, "w");
 
-    if (raw_cfg == NULL || out_cfg == NULL)
+    if (raw_cfg == NULL)
     {
-        if (raw_cfg != NULL)
-            fclose(raw_cfg);
+        unlink(raw_cfg_path);
+        unlink(instr_path);
+        unlink(snap_path);
+        return false;
+    }
 
-        if (out_cfg != NULL)
-            fclose(out_cfg);
+    unlink(cfg_path);
+    /* Flawfinder: ignore - temporary file with exclusive creation */
+    int out_cfg_fd = open(cfg_path, O_CREAT | O_EXCL | O_WRONLY, 0600);
 
+    if (out_cfg_fd < 0)
+    {
+        fclose(raw_cfg);
+        unlink(raw_cfg_path);
+        unlink(instr_path);
+        unlink(snap_path);
+        return false;
+    }
+
+    FILE* out_cfg = fdopen(out_cfg_fd, "w");
+
+    if (out_cfg == NULL)
+    {
+        close(out_cfg_fd);
+        fclose(raw_cfg);
         unlink(raw_cfg_path);
         unlink(instr_path);
         unlink(snap_path);
@@ -1614,6 +1650,7 @@ static bool receive_migrated_node(Hypervisor* hypervisor)
 
     if (node->config.snapshot_file == NULL)
     {
+        unlink(snap_path);
         teardown_node(node);
         return false;
     }
