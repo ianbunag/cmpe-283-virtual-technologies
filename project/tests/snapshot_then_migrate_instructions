@@ -1,0 +1,8 @@
+li $1,10
+li $2,20
+add $3,$1,$2
+SNAPSHOT tests/snapshot_then_migrate_initial_snapshot
+addi $3,$3,12
+MIGRATE 127.0.0.1:9099
+addi $3,$3,15
+DUMP_REGISTER_STATE $3
