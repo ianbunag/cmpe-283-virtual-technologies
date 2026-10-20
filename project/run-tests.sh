@@ -145,6 +145,7 @@ run_test_async "$@" "it_should_resume_local_execution_on_unresolvable_migration_
 run_test_async "$@" "it_should_support_snapshot_before_and_after_migration" ./myvmm -p 9095 -t 1 -v tests/snapshot_migration_interleaved_assembly_file
 run_test_async "$@" "it_should_create_snapshot_on_migrated_node" ./myvmm -p 9096 -t 1 -v tests/snapshot_on_migrated_node_assembly_file
 run_test_async "$@" "it_should_restore_snapshot_created_on_migrated_node" ./myvmm -v tests/snapshot_on_migrated_node_assembly_file -s tests/snapshot_on_migrated_node_snapshot
+run_test_async "$@" "it_should_support_migration_as_first_instruction" ./myvmm -p 9097 -t 1 -v tests/cold_offload_migration_assembly_file
 
 # It should support cross-process live migration
 run_test_async "$@" "it_should_receive_cross_process_migration" ./myvmm -p 9900 -t 2
