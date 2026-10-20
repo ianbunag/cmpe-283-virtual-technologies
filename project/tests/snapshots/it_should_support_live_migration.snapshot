@@ -20,6 +20,7 @@
 [0m[0;33mDebug: Dropping node "tests/live_migration_instructions"
 [0m[0;33mDebug: NodeConfig->assembly_file_name = "/tmp/myvmm_received_cfg_9090_0"
 [0m[0;33mDebug: NodeConfig->vm_binary = "/tmp/myvmm_received_instr_9090_0"
+[0m[0;33mDebug: Received node "/tmp/myvmm_received_instr_9090_0"
 [0m[0;33mDebug: Enqueuing pending node "/tmp/myvmm_received_instr_9090_0"
 [0m[0;33mDebug: Restoring node from "/tmp/myvmm_received_snap_9090_0"
 [0m[0;33mDebug: Validating snapshot "/tmp/myvmm_received_snap_9090_0"

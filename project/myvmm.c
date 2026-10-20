@@ -1602,6 +1602,8 @@ static bool receive_migrated_node(Hypervisor* hypervisor)
         return false;
     }
 
+    debug("Received node \"%s\"\n", node->config.vm_binary);
+
     node->config.snapshot_file = strndup(snap_path, sizeof(snap_path));
 
     if (node->config.snapshot_file == NULL)
