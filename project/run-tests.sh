@@ -67,6 +67,8 @@ wait_for_async_tests() {
 ./run-test.sh "$@" "it_should_fail_on_migrate_to_privileged_port" ./myvmm -v tests/migration_privileged_port_assembly_file
 ./run-test.sh "$@" "it_should_fail_on_migrate_to_out_of_range_port" ./myvmm -v tests/migration_out_of_range_port_assembly_file
 ./run-test.sh "$@" "it_should_fail_on_invalid_timeout" ./myvmm -t 0
+./run-test.sh "$@" "it_should_fail_on_negative_timeout" ./myvmm -t -1
+./run-test.sh "$@" "it_should_fail_on_non_numeric_timeout" ./myvmm -t abc
 
 
 # It should support configuration quirks
