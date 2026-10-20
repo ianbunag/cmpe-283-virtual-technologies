@@ -155,6 +155,18 @@ run_test_async "$@" "it_should_send_cross_process_migration" ./myvmm -v tests/cr
 run_test_async "$@" "it_should_round_trip_migrate_vm_a" ./myvmm -p 9901 -t 3 -v tests/round_trip_vm_a_assembly_file
 run_test_async "$@" "it_should_round_trip_migrate_vm_b" ./myvmm -p 9902 -t 3 -v tests/round_trip_vm_b_assembly_file
 
+# It should support live url migration
+MIGRATION_DOMAIN="${MIGRATION_DOMAIN:-cmpe-283.ianbunag.dev}"
+cat <<EOF > tests/live_url_migration_instructions
+li \$1,10
+li \$2,20
+add \$3,\$1,\$2
+MIGRATE ${MIGRATION_DOMAIN}:9089
+addi \$3,\$3,12
+DUMP_REGISTER_STATE \$3
+EOF
+run_test_async "$@" "it_should_support_live_url_migration" ./myvmm -d -p 9089 -t 1 -v tests/live_url_migration_assembly_file
+
 ./myvmm -p 9990 -t 5 >/dev/null 2>&1 &
 COLLISION_SERVER_PID=$!
 sleep 0.5
