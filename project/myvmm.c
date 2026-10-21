@@ -2096,7 +2096,7 @@ static bool setup_hypervisor_patterns(Patterns* patterns)
     patterns->andi.is_initialized = true;
 
     /* Both "or" and "ori" are supported because the name is "or" in the MIPS Instruction Set document.
-     * See https://github.com/ianbunag/cmpe-283-virtual-technologies/blob/main/project/doc/MIPS_Instruction_Set.pdf).
+     * See https://github.com/ianbunag/mips-virtual-machine-monitor/blob/main/project/doc/MIPS_Instruction_Set.pdf).
      */
     if (regcomp(&patterns->ori.pattern,
                 "^[[:space:]]*ori?[[:space:]]+\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*\\$([0-9]+|hi|low)[[:space:]]*,[[:space:]]*([-+]{0,1}[0-9]+)[[:space:]]*$",
