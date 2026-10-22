@@ -2,3 +2,4 @@
 .DS_Store
 project/myvmm
 project/tests/live_url_migration_instructions
+project/tests/localhost_then_closed_port_migration_instructions

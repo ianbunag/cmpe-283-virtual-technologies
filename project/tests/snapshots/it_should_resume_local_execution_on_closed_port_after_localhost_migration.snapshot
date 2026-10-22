@@ -1,0 +1,51 @@
+[0;33mDebug: Debug enabled.
+[0m[0;33mDebug: Server port = 9088
+[0m[0;33mDebug: Server timeout = 1 seconds
+[0m[0;33mDebug: Node = "tests/localhost_then_closed_port_migration_assembly_file"
+[0m[0;33mDebug: NodeConfig->assembly_file_name = "tests/localhost_then_closed_port_migration_assembly_file"
+[0m[0;33mDebug: NodeConfig->vm_binary = "tests/localhost_then_closed_port_migration_instructions"
+[0m[0;33mDebug: Enqueuing pending node "tests/localhost_then_closed_port_migration_instructions"
+[0m[0;33mDebug: Server listening on port 9088 (file_descriptor 4)
+[0m[0;33mDebug: Transferring pending node "tests/localhost_then_closed_port_migration_instructions" to running list
+[0m[0;33mDebug: Running instruction "li $1,10"
+[0m[0;33mDebug: NodeProcessor->registers[1] = 10
+[0m[0;33mDebug: Running instruction "li $2,20"
+[0m[0;33mDebug: NodeProcessor->registers[2] = 20
+[0m[0;33mDebug: Running instruction "add $3,$1,$2"
+[0m[0;33mDebug: NodeProcessor->registers[3] = 30
+[0m[0;33mDebug: Running instruction "MIGRATE 127.0.0.1:9088"
+[0m[0;33mDebug: Taking snapshot "/tmp/myvmm_snap_9088_0"
+[0m[0;33mDebug: Migrating node "tests/localhost_then_closed_port_migration_instructions" to 127.0.0.1:9088
+[0m[0;33mDebug: Hypervisor->current_node = "tests/localhost_then_closed_port_migration_instructions"
+[0m[0;33mDebug: Dropping node "tests/localhost_then_closed_port_migration_instructions"
+[0m[0;33mDebug: NodeConfig->assembly_file_name = "/tmp/myvmm_received_cfg_9088_0"
+[0m[0;33mDebug: NodeConfig->vm_binary = "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Received node "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Enqueuing pending node "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Restoring node from "/tmp/myvmm_received_snap_9088_0"
+[0m[0;33mDebug: Validating snapshot "/tmp/myvmm_received_snap_9088_0"
+[0m[0;33mDebug: Skipping 4 instructions
+[0m[0;33mDebug: NodeProcessor->registers[1] = 10
+[0m[0;33mDebug: NodeProcessor->registers[2] = 20
+[0m[0;33mDebug: NodeProcessor->registers[3] = 30
+[0m[0;33mDebug: Successfully received and restored migrated node "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Transferring pending node "/tmp/myvmm_received_instr_9088_0" to running list
+[0m[0;33mDebug: Hypervisor->current_node = "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Running instruction "addi $3,$3,12"
+[0m[0;33mDebug: NodeProcessor->registers[3] = 42
+[0m[0;33mDebug: Running instruction "MIGRATE cmpe-283.ianbunag.dev:9088"
+[0m[0;33mDebug: Taking snapshot "/tmp/myvmm_snap_9088_1"
+[0m[0;33mDebug: Connection attempt 1 to cmpe-283.ianbunag.dev:9088 timed out or failed, retrying in 25 ms...
+[0m[0;33mDebug: Connection attempt 2 to cmpe-283.ianbunag.dev:9088 timed out or failed, retrying in 50 ms...
+[0m[0;33mDebug: Connection attempt 3 to cmpe-283.ianbunag.dev:9088 timed out or failed, retrying in 100 ms...
+[0m[0;33mDebug: Connection attempt 4 to cmpe-283.ianbunag.dev:9088 timed out or failed, retrying in 200 ms...
+[0m[0;33mDebug: Connection attempt 5 to cmpe-283.ianbunag.dev:9088 timed out or failed, retrying in 400 ms...
+[0mError: Failed to connect to migration target "cmpe-283.ianbunag.dev:9088". Aborting migration and resuming local execution.
+[0;33mDebug: Running instruction "addi $3,$3,8"
+[0m[0;33mDebug: NodeProcessor->registers[3] = 50
+[0m[0;33mDebug: Running instruction "DUMP_REGISTER_STATE $3"
+[0m[0;33mDebug: Hypervisor->current_node = "/tmp/myvmm_received_instr_9088_0"
+[0m[0;33mDebug: Dropping node "/tmp/myvmm_received_instr_9088_0"
+[0mR3=50
+No VM running, waiting for incoming VM migration on port 9088...
+Server timeout reached after 1 seconds, closing server.

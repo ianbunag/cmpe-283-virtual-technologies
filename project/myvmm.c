@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 #include <fcntl.h>
 
 #define MAX_LINE_LEN 4096
@@ -883,6 +884,12 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
             if (client_file_descriptor < 0)
                 continue;
 
+            struct timeval connect_timeout;
+
+            connect_timeout.tv_sec = 1;
+            connect_timeout.tv_usec = 0;
+            setsockopt(client_file_descriptor, SOL_SOCKET, SO_SNDTIMEO, &connect_timeout, sizeof(connect_timeout));
+
             if (connect(client_file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0)
                 break;
 
@@ -895,6 +902,12 @@ static void migrate_node(const Hypervisor* hypervisor, const Match* match)
 
         if (attempt < 5)
         {
+            debug("Connection attempt %d to %s:%s timed out or failed, retrying in %ld ms...\n",
+                  attempt + 1,
+                  host,
+                  port_str,
+                  retry_delay.tv_nsec / 1000000L);
+
             nanosleep(&retry_delay, NULL);
             retry_delay.tv_nsec *= 2;
         }

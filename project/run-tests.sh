@@ -162,8 +162,22 @@ run_test_async "$@" "it_should_send_cross_process_migration" ./myvmm -v tests/cr
 run_test_async "$@" "it_should_round_trip_migrate_vm_a" ./myvmm -p 9901 -t 3 -v tests/round_trip_vm_a_assembly_file
 run_test_async "$@" "it_should_round_trip_migrate_vm_b" ./myvmm -p 9902 -t 3 -v tests/round_trip_vm_b_assembly_file
 
-# It should support live url migration.
 MIGRATION_DOMAIN="${MIGRATION_DOMAIN:-cmpe-283.ianbunag.dev}"
+
+# It should confirm live url requests go through the internet - the request will fail because the port is not exposed.
+cat <<EOF > tests/localhost_then_closed_port_migration_instructions
+li \$1,10
+li \$2,20
+add \$3,\$1,\$2
+MIGRATE 127.0.0.1:9088
+addi \$3,\$3,12
+MIGRATE ${MIGRATION_DOMAIN}:9088
+addi \$3,\$3,8
+DUMP_REGISTER_STATE \$3
+EOF
+run_test_async "$@" "it_should_resume_local_execution_on_closed_port_after_localhost_migration" ./myvmm -d -p 9088 -t 1 -v tests/localhost_then_closed_port_migration_assembly_file
+
+# It should support live url migration.
 cat <<EOF > tests/live_url_migration_instructions
 li \$1,10
 li \$2,20
